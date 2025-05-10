@@ -15,6 +15,23 @@ from storyapp.serializers import StorySerializer
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserRegisterSerializer
+    
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        
+        # Create token for the new user
+        from rest_framework.authtoken.models import Token
+        token, _ = Token.objects.get_or_create(user=user)
+        
+        # Return user data along with token
+        user_serializer = UserSerializer(user)
+        
+        return Response({
+            'token': token.key,
+            'user': user_serializer.data
+        }, status=status.HTTP_201_CREATED)
 
 class LoginView(generics.GenericAPIView):
     permission_classes = [permissions.AllowAny]
@@ -23,9 +40,19 @@ class LoginView(generics.GenericAPIView):
         user = authenticate(username=request.data['username'], password=request.data['password'])
         if not user:
             return Response({'error': 'Invalid credentials'}, status=400)
-        login(request, user)
         token, _ = Token.objects.get_or_create(user=user)
-        return Response({'token': token.key})
+        
+        # Get user data to return along with token
+        from accounts.serializers import UserSerializer
+        user_data = UserSerializer(user).data
+        
+        # Combine token and user data in response
+        response_data = {
+            'token': token.key,
+            'user': user_data
+        }
+        
+        return Response(response_data)
 
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
