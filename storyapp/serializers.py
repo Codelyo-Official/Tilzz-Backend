@@ -65,6 +65,7 @@ class StorySerializer(serializers.ModelSerializer):
     likes_count = serializers.IntegerField(source='liked_by.count', read_only=True)
     followers_count = serializers.IntegerField(source='followed_by.count', read_only=True)
     creator_username = serializers.ReadOnlyField(source='creator.username')
+    cover_image = serializers.ImageField(required=False)
 
     class Meta:
         model = Story

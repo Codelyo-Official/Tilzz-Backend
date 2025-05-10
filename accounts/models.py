@@ -1,7 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
-from django.db.models.signals import post_save
-from django.dispatch import receiver
+from django.utils.safestring import mark_safe
 from storyapp.models import Story
 
 class Profile(models.Model):
@@ -13,28 +12,8 @@ class Profile(models.Model):
     
     def __str__(self):
         return f'{self.user.username} Profile'
-
-@receiver(post_save, sender=User)
-def create_user_profile(sender, instance, created, **kwargs):
-    if created:
-        Profile.objects.create(user=instance)
-
-@receiver(post_save, sender=User)
-def save_user_profile(sender, instance, **kwargs):
-    instance.profile.save()
-
-
-class Story(models.Model):
-    pass
-
-
-class Version(models.Model):
-    pass
-
-
-class Episode(models.Model):
-    pass
-
-
-class StoryReport(models.Model):
-    pass
+    
+    def image_preview(self):
+        if self.profile_picture:
+            return mark_safe(f'<img src="{self.profile_picture.url}" width="150" />')
+        return "No picture uploaded"

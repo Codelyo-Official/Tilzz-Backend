@@ -14,6 +14,8 @@ from .serializers import (
 )
 from accounts.serializers import UserSerializer
 
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+
 class IsCreatorOrReadOnly(IsAuthenticatedOrReadOnly):
     def has_object_permission(self, request, view, obj):
         if request.method in ['GET', 'HEAD', 'OPTIONS']:
@@ -39,6 +41,7 @@ class PublicStoryDetailView(generics.RetrieveAPIView):
 class StoryViewSet(viewsets.ModelViewSet):
     serializer_class = StorySerializer
     permission_classes = [IsCreatorOrReadOnly]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
     
     def get_queryset(self):
         user = self.request.user

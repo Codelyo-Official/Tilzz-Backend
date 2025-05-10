@@ -18,6 +18,7 @@ class Story(models.Model):
         (PRIVATE, 'Private'),
         (QUARANTINED, 'Quarantined'),
     ]
+#    visibility = models.CharField(max_length=20, choices=[('public', 'Public'), ('private', 'Private')], default='public')
 
     title = models.CharField(max_length=255)
     description = models.TextField()
@@ -26,6 +27,9 @@ class Story(models.Model):
     followed_by = models.ManyToManyField(User, related_name='followed_stories', blank=True)
     visibility = models.CharField(max_length=15, choices=VISIBILITY_CHOICES, default=PUBLIC)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    cover_image = models.ImageField(upload_to='story_covers/', null=True, blank=True)
+    
     organization = models.ForeignKey(Organization, on_delete=models.SET_NULL, null=True, blank=True, related_name='stories')
 
     def __str__(self):
