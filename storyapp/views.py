@@ -117,6 +117,9 @@ class VersionViewSet(viewsets.ModelViewSet):
     serializer_class = VersionSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
     
+    # We no longer need to handle version creation manually
+    # The perform_create method can be removed
+    
     def perform_create(self, serializer):
         story = get_object_or_404(Story, pk=self.request.data.get('story'))
         if story.creator != self.request.user:
@@ -154,11 +157,85 @@ class EpisodeViewSet(viewsets.ModelViewSet):
     serializer_class = EpisodeSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
     
+    def create(self, request, *args, **kwargs):
+        # Get story_id from URL if present
+        story_id = self.kwargs.get('story_id')
+        version_id = request.data.get('version_id')
+        
+        # Case 1: Creating first episode of a story (auto-create first version)
+        if story_id and not version_id:
+            story = get_object_or_404(Story, pk=story_id)
+            if story.creator != request.user:
+                return Response({'error': 'You can only create episodes for your own stories'}, 
+                               status=status.HTTP_403_FORBIDDEN)
+            
+            # Create first version for this story if it doesn't exist
+            version, created = Version.objects.get_or_create(
+                story=story,
+                defaults={'version_number': 1}  # First version
+            )
+            
+            # Add version_id to request data
+            mutable_data = request.data.copy()
+            mutable_data['version'] = version.id
+            serializer = self.get_serializer(data=mutable_data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            
+        # Case 2: Adding episode to existing version
+        elif version_id:
+            version = get_object_or_404(Version, pk=version_id)
+            if version.story.creator != request.user:
+                return Response({'error': 'You can only create episodes for your own stories'}, 
+                               status=status.HTTP_403_FORBIDDEN)
+            
+            # Add version to request data
+            mutable_data = request.data.copy()
+            mutable_data['version'] = version.id
+            serializer = self.get_serializer(data=mutable_data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+        else:
+            return Response({
+                'error': 'Invalid request. Please provide either story_id in URL or version_id in body'
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+    
     def perform_create(self, serializer):
-        version = get_object_or_404(Version, pk=self.request.data.get('version'))
-        if version.story.creator != self.request.user:
-            return Response({'error': 'You can only create episodes for your own stories'}, status=status.HTTP_403_FORBIDDEN)
         serializer.save()
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def branch(self, request, pk=None):
+        parent_episode = self.get_object()
+        story = parent_episode.version.story
+        
+        if story.creator != request.user:
+            return Response({'error': 'You can only create episodes for your own stories'}, 
+                           status=status.HTTP_403_FORBIDDEN)
+        
+        # Get the latest version number for this story
+        latest_version = Version.objects.filter(story=story).order_by('-version_number').first()
+        new_version_number = 1
+        if latest_version:
+            new_version_number = latest_version.version_number + 1
+        
+        # Create new version
+        new_version = Version.objects.create(
+            story=story,
+            version_number=new_version_number
+        )
+        
+        # Create new episode with the new version and reference to parent
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(
+            version=new_version,
+            parent_episode=parent_episode
+        )
+        
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
     
     @action(detail=False, methods=['get'])
     def by_story(self, request):

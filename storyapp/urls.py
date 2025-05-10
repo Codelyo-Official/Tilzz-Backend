@@ -33,4 +33,6 @@ urlpatterns = [
     # Subadmin endpoints
     path('admin/subadmin/users/', SubadminUserListView.as_view(), name='subadmin-users'),
     path('admin/subadmin/users/<int:user_id>/add_to_organization/', AddUserToOrganizationView.as_view(), name='add-to-organization'),
+    # Add nested URLs for episodes
+    path('stories/<int:story_id>/episodes/', EpisodeViewSet.as_view({'post': 'create'})),
 ]

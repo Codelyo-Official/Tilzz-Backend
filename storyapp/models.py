@@ -46,12 +46,13 @@ class Version(models.Model):
 
 
 class Episode(models.Model):
-    version = models.ForeignKey(Version, on_delete=models.CASCADE, related_name='episodes')
-    title = models.CharField(max_length=255)
+    title = models.CharField(max_length=200)
     content = models.TextField()
+    version = models.ForeignKey(Version, on_delete=models.CASCADE, related_name='episodes')
+    parent_episode = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='child_episodes')
     created_at = models.DateTimeField(auto_now_add=True)
-    parent_version = models.ForeignKey(Version, on_delete=models.SET_NULL, null=True, blank=True, related_name='branched_episodes')
-
+    updated_at = models.DateTimeField(auto_now=True)
+    
     def __str__(self):
         return self.title
 
