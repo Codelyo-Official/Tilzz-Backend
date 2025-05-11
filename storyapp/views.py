@@ -180,7 +180,7 @@ class EpisodeViewSet(viewsets.ModelViewSet):
             mutable_data['version'] = version.id
             serializer = self.get_serializer(data=mutable_data)
             serializer.is_valid(raise_exception=True)
-            self.perform_create(serializer)
+            serializer.save(version=version)  # Explicitly pass the version object
             
         # Case 2: Adding episode to existing version
         elif version_id:
@@ -194,7 +194,7 @@ class EpisodeViewSet(viewsets.ModelViewSet):
             mutable_data['version'] = version.id
             serializer = self.get_serializer(data=mutable_data)
             serializer.is_valid(raise_exception=True)
-            self.perform_create(serializer)
+            serializer.save(version=version)  # Explicitly pass the version object
         else:
             return Response({
                 'error': 'Invalid request. Please provide either story_id in URL or version_id in body'

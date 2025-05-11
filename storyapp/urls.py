@@ -9,10 +9,9 @@ from .views import (
 )
 
 router = DefaultRouter()
-router.register('stories', StoryViewSet, basename='story')
-router.register('versions', VersionViewSet)
-router.register('episodes', EpisodeViewSet)
-router.register('reports', StoryReportViewSet)
+router.register(r'stories', StoryViewSet, basename='story')
+router.register(r'versions', VersionViewSet)
+router.register(r'episodes', EpisodeViewSet)
 router.register('organizations', OrganizationViewSet)
 
 urlpatterns = [
@@ -34,5 +33,5 @@ urlpatterns = [
     path('admin/subadmin/users/', SubadminUserListView.as_view(), name='subadmin-users'),
     path('admin/subadmin/users/<int:user_id>/add_to_organization/', AddUserToOrganizationView.as_view(), name='add-to-organization'),
     # Add nested URLs for episodes
-    path('stories/<int:story_id>/episodes/', EpisodeViewSet.as_view({'post': 'create'})),
+    path('<int:story_id>/episodes/', EpisodeViewSet.as_view({'post': 'create'}))
 ]
