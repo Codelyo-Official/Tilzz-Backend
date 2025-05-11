@@ -219,7 +219,7 @@ class EpisodeViewSet(viewsets.ModelViewSet):
         latest_version = Version.objects.filter(story=story).order_by('-version_number').first()
         new_version_number = 1
         if latest_version:
-            new_version_number = latest_version.version_number + 1
+            new_version_number = latest_version.version_number + str(1)
         
         # Create new version
         new_version = Version.objects.create(
