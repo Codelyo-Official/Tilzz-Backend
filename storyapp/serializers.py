@@ -165,13 +165,21 @@ class StorySerializer(serializers.ModelSerializer):
                 serializer = VersionSerializer(root_version, context=self.context)
                 return [serializer.data]
             return []
-        
-        # Check if a specific version is requested
-        version_param = request.query_params.get('version')
+            
+        # Check if a specific version is requested (check both 'version' and 'versions' parameters)
+        version_param = request.query_params.get('version') or request.query_params.get('versions')
         if version_param:
             try:
-                # Try to get the specific version
+                # Try to get the specific version by version_number
                 specific_version = obj.versions.filter(version_number=version_param).first()
+                # If not found by version_number, try by id
+                if not specific_version:
+                    try:
+                        version_id = int(version_param)
+                        specific_version = obj.versions.filter(id=version_id).first()
+                    except (ValueError, TypeError):
+                        pass
+                
                 if specific_version:
                     serializer = VersionSerializer(specific_version, context=self.context)
                     return [serializer.data]
