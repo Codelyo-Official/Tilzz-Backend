@@ -10,10 +10,11 @@ class OrganizationSerializer(serializers.ModelSerializer):
 class EpisodeSerializer(serializers.ModelSerializer):
     has_next = serializers.SerializerMethodField()
     has_previous = serializers.SerializerMethodField()
-    
+    next_id = serializers.SerializerMethodField()
+    previous_id = serializers.SerializerMethodField()
     class Meta:
         model = Episode
-        fields = ['id', 'title', 'content', 'version', 'parent_episode', 'created_at', 'has_next', 'has_previous']
+        fields = ['id', 'title', 'content', 'version', 'parent_episode', 'created_at', 'has_next', 'has_previous','next_id', 'previous_id']
         read_only_fields = ['version', 'parent_episode']
     
     def get_has_next(self, obj):
@@ -31,14 +32,33 @@ class EpisodeSerializer(serializers.ModelSerializer):
             created_at__lt=obj.created_at
         ).order_by('-created_at').first()
         return previous_episode is not None
+        
+    def get_next_id(self, obj):
+        # Check if there's a next episode in the same version
+        next_episode = Episode.objects.filter(
+            version=obj.version,
+            created_at__gt=obj.created_at
+        ).order_by('created_at').first()
+        return next_episode.id if next_episode else None
+    
+    def get_previous_id(self, obj):
+        # Check if there's a previous episode in the same version
+        previous_episode = Episode.objects.filter(
+            version=obj.version,
+            created_at__lt=obj.created_at
+        ).order_by('-created_at').first()
+        return previous_episode.id if previous_episode else None
 
 class VersionSerializer(serializers.ModelSerializer):
     has_next = serializers.SerializerMethodField()
     has_previous = serializers.SerializerMethodField()
+    next_id = serializers.SerializerMethodField()
+    previous_id = serializers.SerializerMethodField()
+    episodes = EpisodeSerializer(many=True, read_only=True)
     
     class Meta:
         model = Version
-        fields = ['id', 'story', 'version_number', 'created_at', 'has_next', 'has_previous']
+        fields = ['id', 'story', 'version_number', 'created_at', 'has_next', 'has_previous', 'next_id', 'previous_id', 'episodes']
     
     def get_has_next(self, obj):
         # Check if there's a next version in the same story
@@ -55,11 +75,20 @@ class VersionSerializer(serializers.ModelSerializer):
             version_number__lt=obj.version_number
         ).order_by('-version_number').first()
         return previous_version is not None
-    episodes = EpisodeSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = Version
-        fields = '__all__'
+    
+    def get_next_id(self, obj):
+        next_version = Version.objects.filter(
+            story=obj.story,
+            version_number__gt=obj.version_number
+        ).order_by('version_number').first()
+        return next_version.id if next_version else None
+    
+    def get_previous_id(self, obj):
+        previous_version = Version.objects.filter(
+            story=obj.story,
+            version_number__lt=obj.version_number
+        ).order_by('-version_number').first()
+        return previous_version.id if previous_version else None
 
 class StorySerializer(serializers.ModelSerializer):
     versions = VersionSerializer(many=True, read_only=True)

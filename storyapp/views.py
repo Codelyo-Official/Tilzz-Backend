@@ -256,10 +256,18 @@ class EpisodeViewSet(viewsets.ModelViewSet):
         ).order_by('created_at').first()
         
         if not next_episode:
-            return Response({'detail': 'No next episode found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({
+                'has_next': False, 
+                'next_id': None,
+                'next_episode': None
+            }, status=status.HTTP_200_OK)
         
         serializer = self.get_serializer(next_episode)
-        return Response(serializer.data)
+        return Response({
+            'has_next': True, 
+            'next_id': next_episode.id,
+            'next_episode': serializer.data
+        }, status=status.HTTP_200_OK)
     
     @action(detail=True, methods=['get'])
     def previous(self, request, pk=None):
@@ -270,13 +278,21 @@ class EpisodeViewSet(viewsets.ModelViewSet):
         ).order_by('-created_at').first()
         
         if not previous_episode:
-            return Response({'detail': 'No previous episode found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({
+                'has_previous': False, 
+                'previous_id': None,
+                'previous_episode': None
+            }, status=status.HTTP_200_OK)
         
         serializer = self.get_serializer(previous_episode)
-        return Response(serializer.data)
+        return Response({
+            'has_previous': True, 
+            'previous_id': previous_episode.id,
+            'previous_episode': serializer.data
+        }, status=status.HTTP_200_OK)
     
     @action(detail=True, methods=['get'])
-    def next(self, request, pk=None):
+    def next_version(self, request, pk=None):
         version = self.get_object()
         next_version = Version.objects.filter(
             story=version.story,
@@ -284,13 +300,12 @@ class EpisodeViewSet(viewsets.ModelViewSet):
         ).order_by('version_number').first()
         
         if not next_version:
-            return Response({'detail': 'No next version found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'has_next': False, 'next_id': None}, status=status.HTTP_200_OK)
         
-        serializer = self.get_serializer(next_version)
-        return Response(serializer.data)
+        return Response({'has_next': True, 'next_id': next_version.id}, status=status.HTTP_200_OK)
     
     @action(detail=True, methods=['get'])
-    def previous(self, request, pk=None):
+    def previous_version(self, request, pk=None):
         version = self.get_object()
         previous_version = Version.objects.filter(
             story=version.story,
@@ -298,10 +313,9 @@ class EpisodeViewSet(viewsets.ModelViewSet):
         ).order_by('-version_number').first()
         
         if not previous_version:
-            return Response({'detail': 'No previous version found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'has_previous': False, 'previous_id': None}, status=status.HTTP_200_OK)
         
-        serializer = self.get_serializer(previous_version)
-        return Response(serializer.data)
+        return Response({'has_previous': True, 'previous_id': previous_version.id}, status=status.HTTP_200_OK)
 
 class StoryReportViewSet(viewsets.ModelViewSet):
     queryset = StoryReport.objects.all()
