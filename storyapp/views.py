@@ -165,9 +165,9 @@ class EpisodeViewSet(viewsets.ModelViewSet):
         # Case 1: Creating first episode of a story (auto-create first version)
         if story_id and not version_id:
             story = get_object_or_404(Story, pk=story_id)
-            if story.creator != request.user:
+            '''if story.creator != request.user:
                 return Response({'error': 'You can only create episodes for your own stories'}, 
-                               status=status.HTTP_403_FORBIDDEN)
+                               status=status.HTTP_403_FORBIDDEN)'''
             
             # Create first version for this story if it doesn't exist
             version, created = Version.objects.get_or_create(
@@ -185,9 +185,9 @@ class EpisodeViewSet(viewsets.ModelViewSet):
         # Case 2: Adding episode to existing version
         elif version_id:
             version = get_object_or_404(Version, pk=version_id)
-            if version.story.creator != request.user:
+            '''if version.story.creator != request.user:
                 return Response({'error': 'You can only create episodes for your own stories'}, 
-                               status=status.HTTP_403_FORBIDDEN)
+                               status=status.HTTP_403_FORBIDDEN)'''
             
             # Add version to request data
             mutable_data = request.data.copy()
@@ -211,9 +211,9 @@ class EpisodeViewSet(viewsets.ModelViewSet):
         parent_episode = self.get_object()
         story = parent_episode.version.story
         
-        if story.creator != request.user:
+        '''if story.creator != request.user:
             return Response({'error': 'You can only create episodes for your own stories'}, 
-                           status=status.HTTP_403_FORBIDDEN)
+                           status=status.HTTP_403_FORBIDDEN)'''
         
         # Get the latest version number for this story
         latest_version = Version.objects.filter(story=story).order_by('-version_number').first()
