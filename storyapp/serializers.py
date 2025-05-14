@@ -126,14 +126,14 @@ class VersionSerializer(serializers.ModelSerializer):
     
     def get_next_id(self, obj):
         try:
-            version_number = int(obj.version_number)
+            # No need to convert to int first, string comparison will work with padded numbers
             next_version = Version.objects.filter(
                 story=obj.story,
-                version_number__gt=version_number
+                version_number__gt=obj.version_number
             ).order_by('version_number').first()
             return next_version.id if next_version else None
-        except (ValueError, TypeError):
-            # Handle case where version_number is not a valid integer
+        except Exception:
+            # Handle any unexpected errors
             return None
     
     def get_previous_id(self, obj):
@@ -169,25 +169,33 @@ class StorySerializer(serializers.ModelSerializer):
         # Check if a specific version is requested (check both 'version' and 'versions' parameters)
         version_param = request.query_params.get('version') or request.query_params.get('versions')
         if version_param:
+            # First try to get the specific version by id
             try:
-                # Try to get the specific version by version_number
-                specific_version = obj.versions.filter(version_number=version_param).first()
-                # If not found by version_number, try by id
-                if not specific_version:
-                    try:
-                        version_id = int(version_param)
-                        specific_version = obj.versions.filter(id=version_id).first()
-                    except (ValueError, TypeError):
-                        pass
-                
+                version_id = int(version_param)
+                specific_version = obj.versions.filter(id=version_id).first()
                 if specific_version:
                     serializer = VersionSerializer(specific_version, context=self.context)
                     return [serializer.data]
-                # If version not found, return empty list
-                return []
             except (ValueError, TypeError):
-                # Handle case where version_number is not valid
-                return []
+                pass
+            
+            # If not found by id, try by version_number (padded)
+            try:
+                # Pad the version number for consistent comparison
+                padded_version = str(int(version_param)).zfill(5)
+                specific_version = obj.versions.filter(version_number=padded_version).first()
+                if specific_version:
+                    serializer = VersionSerializer(specific_version, context=self.context)
+                    return [serializer.data]
+            except (ValueError, TypeError):
+                # If version_param is not a valid integer, try exact match
+                specific_version = obj.versions.filter(version_number=version_param).first()
+                if specific_version:
+                    serializer = VersionSerializer(specific_version, context=self.context)
+                    return [serializer.data]
+            
+            # If version not found, return empty list
+            return []
         
         # Check if all versions are requested
         if request.query_params.get('all_versions', '').lower() == 'true':

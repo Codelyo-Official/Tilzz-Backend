@@ -44,6 +44,22 @@ class Version(models.Model):
     def __str__(self):
         return f"{self.story.title} - v{self.version_number}"
 
+    # When creating a new version, add this method to your Version model
+    def save(self, *args, **kwargs):
+        # If this is a new version (no ID yet) or version_number was changed
+        if not self.pk or self._state.adding:
+            # Ensure version_number is padded with leading zeros
+            try:
+                # Convert to integer first to remove any existing padding
+                version_int = int(self.version_number)
+                # Pad with 5 zeros (allows for versions up to 99999)
+                self.version_number = str(version_int).zfill(5)
+            except (ValueError, TypeError):
+                # If version_number is not a valid integer, leave it as is
+                pass
+        
+        super().save(*args, **kwargs)
+
 
 class Episode(models.Model):
     title = models.CharField(max_length=200)
