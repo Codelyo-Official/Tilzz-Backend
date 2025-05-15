@@ -16,13 +16,15 @@ class EpisodeSerializer(serializers.ModelSerializer):
     other_version_id = serializers.SerializerMethodField()
     previous_version = serializers.SerializerMethodField()
     next_version = serializers.SerializerMethodField()
+    creator_username = serializers.ReadOnlyField(source='creator.username')
     
     class Meta:
         model = Episode
         fields = ['id', 'title', 'content', 'version', 'parent_episode', 'created_at', 
                  'has_next', 'has_previous', 'next_id', 'previous_id', 
-                 'has_other_version', 'other_version_id', 'previous_version', 'next_version']
-        read_only_fields = ['version', 'parent_episode']
+                 'has_other_version', 'other_version_id', 'previous_version', 'next_version',
+                 'creator', 'creator_username']
+        read_only_fields = ['version', 'parent_episode', 'creator']
     
     def get_has_next(self, obj):
         # Check if there's a next episode in the same version

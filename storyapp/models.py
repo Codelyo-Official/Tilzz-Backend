@@ -67,7 +67,7 @@ class Episode(models.Model):
     version = models.ForeignKey(Version, on_delete=models.CASCADE, related_name='episodes')
     parent_episode = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='child_episodes')
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='episodes',null=True)
     
     def __str__(self):
         return self.title
