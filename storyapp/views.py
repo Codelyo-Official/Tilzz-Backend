@@ -24,7 +24,13 @@ class IsCreatorOrReadOnly(IsAuthenticatedOrReadOnly):
 
 class IsSubadmin(IsAuthenticated):
     def has_permission(self, request, view):
-        return super().has_permission(request, view) and hasattr(request.user, 'profile') and request.user.organizations.exists()
+        return super().has_permission(request, view) and hasattr(request.user, 'profile') and (
+            request.user.profile.role in ['subadmin', 'admin'] or request.user.organizations.exists()
+        )
+
+class IsAdmin(IsAuthenticated):
+    def has_permission(self, request, view):
+        return super().has_permission(request, view) and hasattr(request.user, 'profile') and request.user.profile.role == 'admin'
 
 class PublicStoryListView(generics.ListAPIView):
     serializer_class = StorySerializer
@@ -335,10 +341,13 @@ class StoryReportViewSet(viewsets.ModelViewSet):
         serializer.save(reported_by=self.request.user)
 
 # Admin views
+# Replace IsAdminUser with IsAdmin in the relevant views
+
+# For example:
 class AdminUserListView(generics.ListAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdmin]  # Changed from IsAdminUser
 
 class MakeSubadminView(APIView):
     permission_classes = [IsAdminUser]
@@ -438,4 +447,127 @@ class AddUserToOrganizationView(APIView):
             return Response({'detail': f'{user.username} added to {org.name}'}, status=status.HTTP_200_OK)
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+# Admin Story Management Functionality
+
+
+class AdminStoryManagementView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        # Check if the requesting user is an admin
+        if not hasattr(request.user, 'profile') or request.user.profile.role != 'admin':
+            return Response({'error': 'Only admins can access this endpoint'}, 
+                           status=status.HTTP_403_FORBIDDEN)
+        
+        # Get all stories
+        stories = Story.objects.all()
+        
+        # Serialize the stories
+        serializer = StorySerializer(stories, many=True)
+        
+        return Response(serializer.data)
+    
+    def put(self, request, story_id):
+        # Check if the requesting user is an admin
+        if not hasattr(request.user, 'profile') or request.user.profile.role != 'admin':
+            return Response({'error': 'Only admins can change story visibility'}, 
+                           status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            # Get the story
+            story = Story.objects.get(id=story_id)
+            
+            # Get visibility from request
+            visibility = request.data.get('visibility')
+            
+            # Validate visibility
+            if visibility not in ['public', 'private', 'followers']:
+                return Response({'error': 'Invalid visibility. Choose from: public, private, followers'}, 
+                               status=status.HTTP_400_BAD_REQUEST)
+            
+            # Update visibility
+            story.visibility = visibility
+            story.save()
+            
+            # Return updated story
+            serializer = StorySerializer(story)
+            return Response({
+                'message': f'Story visibility changed to {visibility}',
+                'story': serializer.data
+            }, status=status.HTTP_200_OK)
+            
+        except Story.DoesNotExist:
+            return Response({'error': 'Story not found'}, status=status.HTTP_404_NOT_FOUND)
+
+class SubadminStoryVisibilityView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def put(self, request, story_id):
+        # Check if the requesting user is a subadmin
+        if not hasattr(request.user, 'profile') or request.user.profile.role != 'subadmin':
+            return Response({'error': 'Only subadmins can use this endpoint'}, 
+                           status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            # Get the story
+            story = Story.objects.get(id=story_id)
+            
+            # Get users assigned to this subadmin
+            assigned_users = User.objects.filter(profile__assigned_to=request.user)
+            
+            # Check if story creator is managed by this subadmin
+            if story.creator not in assigned_users:
+                return Response({'error': 'You can only modify stories created by users assigned to you'}, 
+                               status=status.HTTP_403_FORBIDDEN)
+            
+            # Get visibility from request
+            visibility = request.data.get('visibility')
+            
+            # Validate visibility
+            if visibility not in ['public', 'private', 'followers']:
+                return Response({'error': 'Invalid visibility. Choose from: public, private, followers'}, 
+                               status=status.HTTP_400_BAD_REQUEST)
+            
+            # Update visibility
+            story.visibility = visibility
+            story.save()
+            
+            # Return updated story
+            serializer = StorySerializer(story)
+            return Response({
+                'message': f'Story visibility changed to {visibility}',
+                'story': serializer.data
+            }, status=status.HTTP_200_OK)
+            
+        except Story.DoesNotExist:
+            return Response({'error': 'Story not found'}, status=status.HTTP_404_NOT_FOUND)
+
+class SubadminStoryListView(generics.ListAPIView):
+    serializer_class = StorySerializer
+    permission_classes = [IsSubadmin]
+    
+    def get_queryset(self):
+        user = self.request.user
+        
+        # Get users in the same organizations as the subadmin
+        user_orgs = user.organizations.all()
+        org_users = User.objects.filter(organizations__in=user_orgs).distinct()
+        
+        # Get users assigned to this subadmin
+        assigned_users = User.objects.filter(profile__assigned_to=user)
+        
+        # Combine all users under this subadmin's management
+        managed_users = (org_users | assigned_users).distinct()
+        
+        # Get stories where managed users are creators
+        stories_by_creators = Story.objects.filter(creator__in=managed_users)
+        
+        # Get stories where managed users have created episodes
+        stories_with_episodes = Story.objects.filter(
+            versions__episodes__creator__in=managed_users
+        ).distinct()
+        
+        # Combine both querysets
+        return (stories_by_creators | stories_with_episodes).distinct()
     
