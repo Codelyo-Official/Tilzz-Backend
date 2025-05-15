@@ -206,6 +206,7 @@ class EpisodeViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save()
     
+    # In the EpisodeViewSet class, modify the branch method
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def branch(self, request, pk=None):
         parent_episode = self.get_object()
@@ -227,13 +228,20 @@ class EpisodeViewSet(viewsets.ModelViewSet):
             version_number=new_version_number
         )
         
-        # Create new episode with the new version and reference to parent
+        # Find the latest episode in the chain that has this parent as its ancestor
+        latest_in_chain = parent_episode
+        child = Episode.objects.filter(parent_episode=latest_in_chain.id).first()
+        while child:
+            latest_in_chain = child
+            child = Episode.objects.filter(parent_episode=latest_in_chain.id).first()
+        
+        # Create new episode with the new version and reference to the latest in chain
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save(
             version=new_version,
-            parent_episode=parent_episode,
-            creator=request.user  # This line sets the creator
+            parent_episode=latest_in_chain,
+            creator=request.user
         )
         
         return Response(serializer.data, status=status.HTTP_201_CREATED)
