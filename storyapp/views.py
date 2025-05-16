@@ -10,7 +10,7 @@ from django.contrib.auth.models import User
 from .models import Story, Version, Episode, StoryReport, Organization
 from .serializers import (
     StorySerializer, VersionSerializer, EpisodeSerializer, 
-    StoryReportSerializer, OrganizationSerializer
+    StoryReportSerializer, OrganizationSerializer,
 )
 from accounts.serializers import UserSerializer
 
@@ -552,22 +552,24 @@ class SubadminStoryListView(generics.ListAPIView):
         
         # Get users in the same organizations as the subadmin
         user_orgs = user.organizations.all()
-        org_users = User.objects.filter(organizations__in=user_orgs).distinct()
+        org_users = User.objects.filter(organizations__in=user_orgs)
         
         # Get users assigned to this subadmin
         assigned_users = User.objects.filter(profile__assigned_to=user)
         
-        # Combine all users under this subadmin's management
-        managed_users = (org_users | assigned_users).distinct()
+        # Instead of using the OR operator, use Q objects to combine the conditions
+        from django.db.models import Q
         
-        # Get stories where managed users are creators
-        stories_by_creators = Story.objects.filter(creator__in=managed_users)
-        
-        # Get stories where managed users have created episodes
-        stories_with_episodes = Story.objects.filter(
-            versions__episodes__creator__in=managed_users
+        # Get all managed users using Q objects
+        managed_users = User.objects.filter(
+            Q(organizations__in=user_orgs) | 
+            Q(profile__assigned_to=user)
         ).distinct()
         
-        # Combine both querysets
-        return (stories_by_creators | stories_with_episodes).distinct()
-    
+        # Get all stories where either:
+        # 1. The creator is one of the managed users, or
+        # 2. The story has episodes created by managed users
+        return Story.objects.filter(
+            Q(creator__in=managed_users) | 
+            Q(versions__episodes__creator__in=managed_users)
+        ).distinct()

@@ -6,7 +6,8 @@ from django.contrib.auth import authenticate, login, logout
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-
+from .models import Profile, Organization
+from .serializers import OrganizationSerializer
 from .serializers import UserRegisterSerializer, UserSerializer, ProfileSerializer
 from .models import Profile
 from storyapp.models import Story
