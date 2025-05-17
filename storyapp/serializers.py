@@ -17,14 +17,26 @@ class EpisodeSerializer(serializers.ModelSerializer):
     previous_version = serializers.SerializerMethodField()
     next_version = serializers.SerializerMethodField()
     creator_username = serializers.ReadOnlyField(source='creator.username')
+    creator_admin = serializers.SerializerMethodField()
     
     class Meta:
         model = Episode
         fields = ['id', 'title', 'content', 'version', 'parent_episode', 'created_at', 
                  'has_next', 'has_previous', 'next_id', 'previous_id', 
                  'has_other_version', 'other_version_id', 'previous_version', 'next_version',
-                 'creator', 'creator_username']
+                 'creator', 'creator_username', 'creator_admin']
         read_only_fields = ['version', 'parent_episode', 'creator']
+    
+    def get_creator_admin(self, obj):
+        # Get the creator's admin (if assigned to one)
+        if hasattr(obj.creator, 'profile') and obj.creator.profile.assigned_to:
+            admin = obj.creator.profile.assigned_to
+            return {
+                'id': admin.id,
+                'username': admin.username,
+                'role': admin.profile.role if hasattr(admin, 'profile') else None
+            }
+        return None
     
     def get_has_next(self, obj):
         # Check if there's a next episode in the same version
@@ -151,11 +163,23 @@ class StorySerializer(serializers.ModelSerializer):
     followers_count = serializers.IntegerField(source='followed_by.count', read_only=True)
     creator_username = serializers.ReadOnlyField(source='creator.username')
     cover_image = serializers.ImageField(required=False)
+    creator_admin = serializers.SerializerMethodField()
 
     class Meta:
         model = Story
         fields = '__all__'
         read_only_fields = ['creator']
+    
+    def get_creator_admin(self, obj):
+        # Get the creator's admin (if assigned to one)
+        if hasattr(obj.creator, 'profile') and obj.creator.profile.assigned_to:
+            admin = obj.creator.profile.assigned_to
+            return {
+                'id': admin.id,
+                'username': admin.username,
+                'role': admin.profile.role if hasattr(admin, 'profile') else None
+            }
+        return None
     
     def get_versions(self, obj):
         # Check if we should return all versions or just the root version

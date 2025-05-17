@@ -434,19 +434,70 @@ class SubadminUserListView(generics.ListAPIView):
 class AddUserToOrganizationView(APIView):
     permission_classes = [IsSubadmin]
     
-    def post(self, request, user_id):
-        try:
-            user = User.objects.get(id=user_id)
+    def post(self, request, user_id=None, org_id=None):
+        # Get organization
+        if org_id:
+            try:
+                org = Organization.objects.get(id=org_id)
+            except Organization.DoesNotExist:
+                return Response({'error': 'Organization not found'}, status=status.HTTP_404_NOT_FOUND)
+        else:
             # Get the first organization the subadmin is a member of
             org = request.user.organizations.first()
             
             if not org:
                 return Response({'error': 'You are not a member of any organization'}, status=status.HTTP_400_BAD_REQUEST)
-            
-            org.members.add(user)
-            return Response({'detail': f'{user.username} added to {org.name}'}, status=status.HTTP_200_OK)
-        except User.DoesNotExist:
-            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Check if user has permission for this organization
+        if not request.user.organizations.filter(id=org.id).exists() and request.user.profile.role != 'admin':
+            return Response({'error': 'You do not have permission for this organization'}, 
+                           status=status.HTTP_403_FORBIDDEN)
+        
+        # Handle multiple user IDs
+        user_ids = []
+        
+        # Check if user_id is provided in URL
+        if user_id:
+            user_ids.append(user_id)
+        
+        # Check if user_ids are provided in request body
+        body_user_ids = request.data.get('user_ids', [])
+        if body_user_ids:
+            if isinstance(body_user_ids, list):
+                user_ids.extend(body_user_ids)
+            else:
+                # Handle comma-separated string
+                try:
+                    user_ids.extend([int(id.strip()) for id in str(body_user_ids).split(',')])
+                except ValueError:
+                    return Response({'error': 'Invalid user_ids format. Provide a list or comma-separated values'}, 
+                                   status=status.HTTP_400_BAD_REQUEST)
+        
+        if not user_ids:
+            return Response({'error': 'No user IDs provided'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Add users to organization
+        added_users = []
+        not_found_users = []
+        
+        for uid in user_ids:
+            try:
+                user = User.objects.get(id=uid)
+                org.members.add(user)
+                added_users.append(user.username)
+            except User.DoesNotExist:
+                not_found_users.append(uid)
+        
+        # Prepare response
+        response_data = {
+            'detail': f'{len(added_users)} users added to {org.name}',
+            'added_users': added_users
+        }
+        
+        if not_found_users:
+            response_data['not_found_users'] = not_found_users
+        
+        return Response(response_data, status=status.HTTP_200_OK)
 
 # Admin Story Management Functionality
 

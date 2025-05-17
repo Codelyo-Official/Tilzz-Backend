@@ -33,6 +33,10 @@ urlpatterns = [
     # Subadmin endpoints
     path('admin/subadmin/users/', SubadminUserListView.as_view(), name='subadmin-users'),
     path('admin/subadmin/users/<int:user_id>/add_to_organization/', AddUserToOrganizationView.as_view(), name='add-to-organization'),
+    # New URL pattern for adding members to specific organization
+    path('accounts/organizations/<int:org_id>/add-member/<int:user_id>/', AddUserToOrganizationView.as_view(), name='add-member-to-organization'),
+    # New URL pattern for adding multiple members to specific organization
+    path('accounts/organizations/<int:org_id>/add-member/', AddUserToOrganizationView.as_view(), name='add-members-to-organization'),
     path('admin/subadmin/stories/', SubadminStoryListView.as_view(), name='subadmin-stories'),
     path('admin/subadmin/stories/<int:story_id>/visibility/', SubadminStoryVisibilityView.as_view(), name='subadmin_change_story_visibility'),
     # Add nested URLs for episodes
