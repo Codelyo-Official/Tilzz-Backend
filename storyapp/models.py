@@ -13,10 +13,12 @@ class Story(models.Model):
     PUBLIC = 'public'
     PRIVATE = 'private'
     QUARANTINED = 'quarantined'
+    REPORTED = 'reported'  # New status
     VISIBILITY_CHOICES = [
         (PUBLIC, 'Public'),
         (PRIVATE, 'Private'),
         (QUARANTINED, 'Quarantined'),
+        (REPORTED, 'Reported'),  # New status
     ]
 #    visibility = models.CharField(max_length=20, choices=[('public', 'Public'), ('private', 'Private')], default='public')
 
@@ -91,3 +93,23 @@ class StoryReport(models.Model):
 
     def __str__(self):
         return f"Report on '{self.story.title}' by {self.reported_by.username}"
+
+
+class EpisodeReport(models.Model):
+    PENDING = 'pending'
+    APPROVED = 'approved'
+    REJECTED = 'rejected'
+    STATUS_CHOICES = [
+        (PENDING, 'Pending'),
+        (APPROVED, 'Approved'),
+        (REJECTED, 'Rejected'),
+    ]
+    
+    episode = models.ForeignKey(Episode, on_delete=models.CASCADE, related_name='reports')
+    reported_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    reason = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=PENDING)
+
+    def __str__(self):
+        return f"Report on episode '{self.episode.title}' by {self.reported_by.username}"

@@ -612,3 +612,91 @@ class RemoveMemberFromOrganizationView(APIView):
             
         except Organization.DoesNotExist:
             return Response({'error': 'Organization not found'}, status=status.HTTP_404_NOT_FOUND)
+
+class SubadminDeleteUserView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def delete(self, request, user_id):
+        # Check if the requesting user is a subadmin or admin
+        if not hasattr(request.user, 'profile') or request.user.profile.role not in ['subadmin', 'admin']:
+            return Response({'error': 'Only subadmins and admins can access this endpoint'}, 
+                           status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            user = User.objects.get(id=user_id)
+            
+            # Don't allow subadmins to delete themselves
+            if user == request.user:
+                return Response({'error': 'You cannot delete your own account'}, 
+                               status=status.HTTP_400_BAD_REQUEST)
+            
+            # If subadmin, check if the user was created by them
+            if request.user.profile.role == 'subadmin':
+                # Check if the user is assigned to this subadmin
+                if not hasattr(user, 'profile') or user.profile.assigned_to != request.user:
+                    return Response({'error': 'You can only delete users assigned to you'}, 
+                                  status=status.HTTP_403_FORBIDDEN)
+            
+            username = user.username
+            user.delete()
+            
+            return Response({
+                'detail': f'User {username} has been deleted successfully'
+            }, status=status.HTTP_200_OK)
+            
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+class DeleteOrganizationView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def delete(self, request, organization_id):
+        try:
+            organization = Organization.objects.get(id=organization_id)
+            
+            # Check permissions:
+            # 1. Admin can delete any organization
+            # 2. Subadmin can only delete organizations they created
+            is_admin = hasattr(request.user, 'profile') and request.user.profile.role == 'admin'
+            is_creator = organization.created_by == request.user
+            
+            if not (is_admin or is_creator):
+                return Response({'error': 'You do not have permission to delete this organization'}, 
+                               status=status.HTTP_403_FORBIDDEN)
+            
+            org_name = organization.name
+            organization.delete()
+            
+            return Response({
+                'detail': f'Organization "{org_name}" has been deleted successfully'
+            }, status=status.HTTP_200_OK)
+            
+        except Organization.DoesNotExist:
+            return Response({'error': 'Organization not found'}, status=status.HTTP_404_NOT_FOUND)
+
+class DeleteUserView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def delete(self, request, user_id):
+        # Check if the requesting user is an admin
+        if not hasattr(request.user, 'profile') or request.user.profile.role != 'admin':
+            return Response({'error': 'Only admins can delete users'}, 
+                           status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            user = User.objects.get(id=user_id)
+            
+            # Don't allow admins to delete themselves
+            if user == request.user:
+                return Response({'error': 'You cannot delete your own account'}, 
+                               status=status.HTTP_400_BAD_REQUEST)
+            
+            username = user.username
+            user.delete()
+            
+            return Response({
+                'detail': f'User {username} has been deleted successfully'
+            }, status=status.HTTP_200_OK)
+            
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Story, Version, Episode, StoryReport, Organization
+from .models import Story, Version, Episode, StoryReport, Organization,EpisodeReport
 from django.contrib.auth.models import User
 
 class OrganizationSerializer(serializers.ModelSerializer):
@@ -18,14 +18,19 @@ class EpisodeSerializer(serializers.ModelSerializer):
     next_version = serializers.SerializerMethodField()
     creator_username = serializers.ReadOnlyField(source='creator.username')
     creator_admin = serializers.SerializerMethodField()
+    is_reported = serializers.SerializerMethodField()
     
     class Meta:
         model = Episode
         fields = ['id', 'title', 'content', 'version', 'parent_episode', 'created_at', 
                  'has_next', 'has_previous', 'next_id', 'previous_id', 
                  'has_other_version', 'other_version_id', 'previous_version', 'next_version',
-                 'creator', 'creator_username', 'creator_admin']
+                 'creator', 'creator_username', 'creator_admin', 'is_reported']
         read_only_fields = ['version', 'parent_episode', 'creator']
+    
+    def get_is_reported(self, obj):
+        # Check if this episode has any reports
+        return EpisodeReport.objects.filter(episode=obj).exists()
     
     def get_creator_admin(self, obj):
         # Get the creator's admin (if assigned to one)
@@ -244,3 +249,30 @@ class StoryReportSerializer(serializers.ModelSerializer):
         model = StoryReport
         fields = '__all__'
         read_only_fields = ['reported_by']
+
+class EpisodeReportSerializer(serializers.ModelSerializer):
+    reporter_username = serializers.ReadOnlyField(source='reported_by.username')
+    episode_title = serializers.ReadOnlyField(source='episode.title')
+    
+    class Meta:
+        model = EpisodeReport
+        fields = '__all__'
+        read_only_fields = ['reported_by']
+
+
+from rest_framework import serializers
+from .models import Story, Episode, Version, StoryReport, EpisodeReport
+
+class EpisodeSerializer(serializers.ModelSerializer):
+    story_title = serializers.SerializerMethodField()
+    story_id = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Episode
+        fields = ['id', 'title', 'content', 'created_at', 'story_title', 'story_id']
+    
+    def get_story_title(self, obj):
+        return obj.version.story.title
+    
+    def get_story_id(self, obj):
+        return obj.version.story.id

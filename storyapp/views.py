@@ -10,10 +10,10 @@ from django.contrib.auth.models import User
 from .models import Story, Version, Episode, StoryReport, Organization
 from .serializers import (
     StorySerializer, VersionSerializer, EpisodeSerializer, 
-    StoryReportSerializer, OrganizationSerializer,
+    StoryReportSerializer, OrganizationSerializer, EpisodeReportSerializer, EpisodeReport
 )
 from accounts.serializers import UserSerializer
-
+# Remove the circular import - don't import from .views
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
 class IsCreatorOrReadOnly(IsAuthenticatedOrReadOnly):
@@ -128,8 +128,8 @@ class VersionViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         story = get_object_or_404(Story, pk=self.request.data.get('story'))
-        if story.creator != self.request.user:
-            return Response({'error': 'You can only create versions for your own stories'}, status=status.HTTP_403_FORBIDDEN)
+        '''if story.creator != self.request.user:
+            return Response({'error': 'You can only create versions for your own stories'}, status=status.HTTP_403_FORBIDDEN)'''
         serializer.save()
     
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
@@ -332,13 +332,56 @@ class EpisodeViewSet(viewsets.ModelViewSet):
         
         return Response({'has_previous': True, 'previous_id': previous_version.id}, status=status.HTTP_200_OK)
 
+class EpisodeReportViewSet(viewsets.ModelViewSet):
+    queryset = EpisodeReport.objects.all()
+    serializer_class = EpisodeReportSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def perform_create(self, serializer):
+        # Save the report with the current user as reporter
+        serializer.save(reported_by=self.request.user)
+        
+        # Check if this episode's story has reached the report threshold
+        episode = Episode.objects.get(id=serializer.validated_data['episode'].id)
+        story = episode.version.story
+        
+        # Count total reports for this story (including all episodes)
+        story_reports_count = StoryReport.objects.filter(story=story).count()
+        
+        # Count reports for all episodes in this story
+        episode_reports_count = EpisodeReport.objects.filter(
+            episode__version__story=story
+        ).count()
+        
+        # If total reports >= 3, mark the story as reported
+        if story_reports_count + episode_reports_count >= 3:
+            story.visibility = 'reported'  # Make sure 'reported' is a valid choice in your Story model
+            story.save()
+
 class StoryReportViewSet(viewsets.ModelViewSet):
     queryset = StoryReport.objects.all()
     serializer_class = StoryReportSerializer
     permission_classes = [IsAuthenticated]
     
     def perform_create(self, serializer):
+        # Save the report with the current user as reporter
         serializer.save(reported_by=self.request.user)
+        
+        # Check if this story has reached the report threshold
+        story = serializer.validated_data['story']
+        
+        # Count total reports for this story
+        story_reports_count = StoryReport.objects.filter(story=story).count()
+        
+        # Count reports for all episodes in this story
+        episode_reports_count = EpisodeReport.objects.filter(
+            episode__version__story=story
+        ).count()
+        
+        # If total reports >= 3, mark the story as reported
+        if story_reports_count + episode_reports_count >= 3:
+            story.visibility = Story.REPORTED
+            story.save()
 
 # Admin views
 # Replace IsAdminUser with IsAdmin in the relevant views
@@ -380,6 +423,14 @@ class QuarantinedStoriesView(generics.ListAPIView):
     
     def get_queryset(self):
         return Story.objects.filter(visibility='quarantined')
+
+class EpisodeReportsView(generics.ListAPIView):
+    serializer_class = EpisodeReportSerializer
+    permission_classes = [IsAdminUser]
+    
+    def get_queryset(self):
+        episode_id = self.kwargs.get('episode_id')
+        return EpisodeReport.objects.filter(episode_id=episode_id)
 
 class StoryReportsView(generics.ListAPIView):
     serializer_class = StoryReportSerializer
@@ -624,3 +675,110 @@ class SubadminStoryListView(generics.ListAPIView):
             Q(creator__in=managed_users) | 
             Q(versions__episodes__creator__in=managed_users)
         ).distinct()
+
+## Step 2: Create the API View
+from rest_framework import generics, permissions
+from rest_framework.response import Response
+from .models import Story, Episode, Version
+from .serializers import EpisodeSerializer
+
+class QuarantinedEpisodesListView(generics.ListAPIView):
+    serializer_class = EpisodeSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        # Get all quarantined stories
+        quarantined_stories = Story.objects.filter(visibility='quarantined')
+        
+        # Get all versions from quarantined stories
+        versions = Version.objects.filter(story__in=quarantined_stories)
+        
+        # Get all episodes from these versions
+        episodes = Episode.objects.filter(version__in=versions)
+        
+        return episodes
+
+class SubmitEpisodeForApprovalView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, episode_id):
+        try:
+            episode = Episode.objects.get(id=episode_id)
+            
+            # Check if the episode belongs to a quarantined story
+            story = episode.version.story
+            if story.visibility != Story.QUARANTINED:
+                return Response(
+                    {'error': 'Only episodes from quarantined stories can be submitted for approval'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Check if the user is the creator of the episode
+            if episode.creator != request.user:
+                return Response(
+                    {'error': 'You can only submit your own episodes for approval'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            # Create a submission record or update status field
+            # For now, we'll just mark the episode as submitted in the report
+            reports = EpisodeReport.objects.filter(episode=episode)
+            if reports.exists():
+                for report in reports:
+                    report.status = 'pending'  # Set to pending for admin review
+                    report.save()
+            else:
+                # If no reports exist, we might want to create a system notification for admins
+                pass
+            
+            return Response({'detail': 'Episode submitted for approval successfully'}, status=status.HTTP_200_OK)
+            
+        except Episode.DoesNotExist:
+            return Response({'error': 'Episode not found'}, status=status.HTTP_404_NOT_FOUND)
+
+class AdminEpisodeReviewView(generics.ListAPIView):
+    serializer_class = EpisodeReportSerializer
+    permission_classes = [IsAdmin]
+    
+    def get_queryset(self):
+        # Get all episode reports with status 'pending'
+        return EpisodeReport.objects.filter(status='pending')
+
+class ApproveEpisodeView(APIView):
+    permission_classes = [IsAdmin]
+    
+    def post(self, request, episode_id):
+        try:
+            episode = Episode.objects.get(id=episode_id)
+            story = episode.version.story
+            
+            # Approve the episode by changing the story visibility back to public
+            story.visibility = Story.PUBLIC
+            story.save()
+            
+            # Update all reports for this episode
+            reports = EpisodeReport.objects.filter(episode=episode)
+            for report in reports:
+                report.status = 'approved'
+                report.save()
+                
+            return Response({'detail': 'Episode approved successfully'}, status=status.HTTP_200_OK)
+        except Episode.DoesNotExist:
+            return Response({'error': 'Episode not found'}, status=status.HTTP_404_NOT_FOUND)
+
+class RejectEpisodeView(APIView):
+    permission_classes = [IsAdmin]
+    
+    def post(self, request, episode_id):
+        try:
+            episode = Episode.objects.get(id=episode_id)
+            
+            # Update all reports for this episode
+            reports = EpisodeReport.objects.filter(episode=episode)
+            for report in reports:
+                report.status = 'rejected'
+                report.save()
+                
+            return Response({'detail': 'Episode rejection confirmed'}, status=status.HTTP_200_OK)
+        except Episode.DoesNotExist:
+            return Response({'error': 'Episode not found'}, status=status.HTTP_404_NOT_FOUND)
