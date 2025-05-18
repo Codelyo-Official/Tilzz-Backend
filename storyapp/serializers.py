@@ -37,8 +37,8 @@ class EpisodeSerializer(serializers.ModelSerializer):
         return obj.version.story.id
         
     def get_is_reported(self, obj):
-        # Check if this episode has any reports
-        return EpisodeReport.objects.filter(episode=obj).exists()
+        # Check if this episode has 3 or more reports
+        return EpisodeReport.objects.filter(episode=obj).count() >= 3
     
     def get_creator_admin(self, obj):
         # Get the creator's admin (if assigned to one)

@@ -344,7 +344,23 @@ class EpisodeReportViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         # Save the report with the current user as reporter
-        serializer.save(reported_by=self.request.user)
+        report = serializer.save(reported_by=self.request.user)
+        
+        # Check if this report triggered quarantine
+        episode = report.episode
+        report_count = EpisodeReport.objects.filter(episode=episode).count()
+        
+        # Add a message to the response
+        if report_count >= 3:
+            story = episode.version.story
+            if story.visibility == 'quarantined':
+                self.message = "This episode has been automatically quarantined due to multiple reports."
+    
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        if hasattr(self, 'message'):
+            response.data['message'] = self.message
+        return response
         
         # Check if this episode's story has reached the report threshold
         episode = Episode.objects.get(id=serializer.validated_data['episode'].id)
