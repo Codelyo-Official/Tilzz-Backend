@@ -253,13 +253,18 @@ class EpisodeViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
     @action(detail=False, methods=['get'])
-    def by_story(self, request):
-        story_id = request.query_params.get('story_id')
+    def by_story(self, request, story_id=None):
+        # Get story_id from URL parameter if provided, otherwise from query params
+        story_id = story_id or request.query_params.get('story_id')
         if not story_id:
             return Response({'error': 'story_id parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
         
         episodes = Episode.objects.filter(version__story_id=story_id)
-        serializer = self.get_serializer(episodes, many=True)
+        
+        # Explicitly use the EpisodeSerializer with all fields
+        from .serializers import EpisodeSerializer
+        serializer = EpisodeSerializer(episodes, many=True, context={'request': request})
+        
         return Response(serializer.data)
     
     @action(detail=True, methods=['get'])

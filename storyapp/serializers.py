@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from .models import Story, Version, Episode, StoryReport, Organization,EpisodeReport
 from django.contrib.auth.models import User
-
+from rest_framework import serializers
+from .models import Story, Episode, Version, StoryReport, EpisodeReport
 class OrganizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
@@ -19,15 +20,22 @@ class EpisodeSerializer(serializers.ModelSerializer):
     creator_username = serializers.ReadOnlyField(source='creator.username')
     creator_admin = serializers.SerializerMethodField()
     is_reported = serializers.SerializerMethodField()
-    
+    story_title = serializers.SerializerMethodField()
+    story_id = serializers.SerializerMethodField()
+
     class Meta:
         model = Episode
         fields = ['id', 'title', 'content', 'version', 'parent_episode', 'created_at', 
                  'has_next', 'has_previous', 'next_id', 'previous_id', 
                  'has_other_version', 'other_version_id', 'previous_version', 'next_version',
-                 'creator', 'creator_username', 'creator_admin', 'is_reported']
+                 'creator', 'creator_username', 'creator_admin', 'is_reported','story_title', 'story_id']
         read_only_fields = ['version', 'parent_episode', 'creator']
+    def get_story_title(self, obj):
+        return obj.version.story.title
     
+    def get_story_id(self, obj):
+        return obj.version.story.id
+        
     def get_is_reported(self, obj):
         # Check if this episode has any reports
         return EpisodeReport.objects.filter(episode=obj).exists()
@@ -127,6 +135,8 @@ class VersionSerializer(serializers.ModelSerializer):
         model = Version
         fields = ['id', 'story', 'version_number', 'created_at', 'has_next', 'has_previous', 'next_id', 'previous_id', 'episodes']
     
+    
+
     def get_has_next(self, obj):
         # Check if there's a next version in the same story
         next_version = Version.objects.filter(
@@ -260,19 +270,4 @@ class EpisodeReportSerializer(serializers.ModelSerializer):
         read_only_fields = ['reported_by']
 
 
-from rest_framework import serializers
-from .models import Story, Episode, Version, StoryReport, EpisodeReport
 
-class EpisodeSerializer(serializers.ModelSerializer):
-    story_title = serializers.SerializerMethodField()
-    story_id = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = Episode
-        fields = ['id', 'title', 'content', 'created_at', 'story_title', 'story_id']
-    
-    def get_story_title(self, obj):
-        return obj.version.story.title
-    
-    def get_story_id(self, obj):
-        return obj.version.story.id

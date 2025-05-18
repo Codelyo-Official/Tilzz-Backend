@@ -46,7 +46,7 @@ urlpatterns = [
     path('admin/subadmin/stories/', SubadminStoryListView.as_view(), name='subadmin-stories'),
     path('admin/subadmin/stories/<int:story_id>/visibility/', SubadminStoryVisibilityView.as_view(), name='subadmin_change_story_visibility'),
     # Add nested URLs for episodes
-    path('<int:story_id>/episodes/', EpisodeViewSet.as_view({'post': 'create'})),    # Add URL for branching episodes
+    path('<int:story_id>/episodes/', EpisodeViewSet.as_view({'post': 'create', 'get': 'by_story'})),
     path('episodes/<int:pk>/branch/', EpisodeViewSet.as_view({'post': 'branch'}), name='episode-branch'),
     # Add these to your existing urlpatterns
     path('admin/stories/', AdminStoryManagementView.as_view(), name='admin_stories_list'),
