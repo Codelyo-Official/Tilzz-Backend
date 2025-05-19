@@ -782,8 +782,11 @@ class SubmitEpisodeForApprovalView(APIView):
                     status=status.HTTP_403_FORBIDDEN
                 )
             
-            # Create a submission record or update status field
-            # For now, we'll just mark the episode as submitted in the report
+            # Update the episode status to pending
+            episode.status = Episode.PENDING
+            episode.save()
+            
+            # Also update any existing reports
             reports = EpisodeReport.objects.filter(episode=episode)
             if reports.exists():
                 for report in reports:
@@ -806,44 +809,68 @@ class AdminEpisodeReviewView(generics.ListAPIView):
         # Get all episode reports with status 'pending'
         return EpisodeReport.objects.filter(status='pending')
 
+class DeleteEpisodeView(generics.UpdateAPIView):
+    """
+    Instead of actually deleting an episode, this endpoint changes its status to 'pending'
+    so an admin can review it before permanent deletion.
+    """
+    permission_classes = [IsAuthenticated]
+    queryset = Episode.objects.all()
+    serializer_class = EpisodeSerializer
+    lookup_url_kwarg = 'episode_id'
+    
+    def update(self, request, *args, **kwargs):
+        episode = self.get_object()
+        
+        # Check if the user is the creator of the episode
+        if episode.creator != request.user and not request.user.profile.role in ['admin', 'subadmin']:
+            return Response(
+                {"error": "You don't have permission to delete this episode"}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Change status to pending instead of deleting
+        episode.status = Episode.PENDING
+        episode.save()
+        
+        return Response(
+            {"message": "Episode sent for admin review before deletion"}, 
+            status=status.HTTP_200_OK
+        )
+
 class ApproveEpisodeView(APIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [IsAdminUser]
     
     def post(self, request, episode_id):
         try:
-            episode = Episode.objects.get(id=episode_id)
-            story = episode.version.story
+            episode = Episode.objects.get(id=episode_id, status=Episode.PENDING)
+            episode.status = Episode.PUBLIC
+            episode.save()
             
-            # Approve the episode by changing the story visibility back to public
-            story.visibility = Story.PUBLIC
-            story.save()
+            # Update all reports for this episode to rejected
+            EpisodeReport.objects.filter(episode=episode, status='pending').update(status='rejected')
             
-            # Update all reports for this episode
-            reports = EpisodeReport.objects.filter(episode=episode)
-            for report in reports:
-                report.status = 'approved'
-                report.save()
-                
-            return Response({'detail': 'Episode approved successfully'}, status=status.HTTP_200_OK)
+            return Response({'detail': 'Episode approved and made public'}, status=status.HTTP_200_OK)
         except Episode.DoesNotExist:
-            return Response({'error': 'Episode not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Pending episode not found'}, status=status.HTTP_404_NOT_FOUND)
 
 class RejectEpisodeView(APIView):
     permission_classes = [IsAdmin]
     
     def post(self, request, episode_id):
         try:
-            episode = Episode.objects.get(id=episode_id)
+            episode = Episode.objects.get(id=episode_id, status=Episode.PENDING)
             
-            # Update all reports for this episode
-            reports = EpisodeReport.objects.filter(episode=episode)
-            for report in reports:
-                report.status = 'rejected'
-                report.save()
-                
-            return Response({'detail': 'Episode rejection confirmed'}, status=status.HTTP_200_OK)
+            # Keep the episode quarantined
+            episode.status = Episode.QUARANTINED
+            episode.save()
+            
+            # Mark all reports as approved
+            EpisodeReport.objects.filter(episode=episode, status='pending').update(status='approved')
+            
+            return Response({'detail': 'Episode rejected and kept quarantined'}, status=status.HTTP_200_OK)
         except Episode.DoesNotExist:
-            return Response({'error': 'Episode not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Pending episode not found'}, status=status.HTTP_404_NOT_FOUND)
 
 class StoriesWithReportedEpisodesView(generics.ListAPIView):
     serializer_class = StorySerializer
@@ -966,5 +993,31 @@ class UserEpisodesWithReportedStoriesView(generics.ListAPIView):
         response_data = list(stories_with_episodes.values())
         
         return Response(response_data)
+
+class PendingEpisodesView(generics.ListAPIView):
+    serializer_class = EpisodeSerializer
+    permission_classes = [IsAdminUser]
+    
+    def get_queryset(self):
+        return Episode.objects.filter(status=Episode.PENDING).select_related('version__story', 'creator')
+
+class AdminDeleteStoryView(generics.DestroyAPIView):
+    """
+    Allows admins to permanently delete a story
+    """
+    permission_classes = [IsAdminUser]
+    queryset = Story.objects.all()
+    lookup_url_kwarg = 'story_id'
+    
+    def destroy(self, request, *args, **kwargs):
+        story = self.get_object()
+        
+        # Permanently delete the story and all related content
+        story.delete()
+        
+        return Response(
+            {"message": "Story and all related content permanently deleted"}, 
+            status=status.HTTP_204_NO_CONTENT
+        )
 
         

@@ -8,7 +8,8 @@ from .views import (
     SubadminUserListView, AddUserToOrganizationView, AdminStoryManagementView,
     SubadminStoryListView, SubadminStoryVisibilityView, EpisodeReportsView, EpisodeReportViewSet,
     SubmitEpisodeForApprovalView,
-    QuarantinedEpisodesListView,StoriesWithReportedEpisodesView,UserEpisodesWithReportedStoriesView
+    QuarantinedEpisodesListView,StoriesWithReportedEpisodesView,UserEpisodesWithReportedStoriesView,PendingEpisodesView,
+    DeleteEpisodeView,AdminEpisodeReviewView,ApproveEpisodeView,RejectEpisodeView,AdminDeleteStoryView
 )
 
 router = DefaultRouter()
@@ -56,8 +57,14 @@ urlpatterns = [
     # Add these to urlpatterns
     path('api/quarantined-episodes/', UserEpisodesWithReportedStoriesView.as_view(), name='quarantined-episodes'),
     #path('api/my-quarantined-episodes/', UserQuarantinedEpisodesView.as_view(), name='my-quarantined-episodes'),
+    path('api/admin/pending-episodes/', PendingEpisodesView.as_view(), name='pending-episodes'),
     path('api/episodes/<int:episode_id>/submit-for-approval/', SubmitEpisodeForApprovalView.as_view(), name='submit-episode-for-approval'),
     path('api/stories/with-reported-episodes/', StoriesWithReportedEpisodesView.as_view(), name='stories-with-reported-episodes'),
-    # Admin episode review endpoints
-    
+    # Episode deletion and admin review endpoints
+    path('episodes/<int:episode_id>/delete/', DeleteEpisodeView.as_view(), name='delete-episode'),
+    path('admin/episodes/pending-review/', AdminEpisodeReviewView.as_view(), name='admin-episode-review'),
+    path('admin/episodes/<int:episode_id>/approve/', ApproveEpisodeView.as_view(), name='approve-episode'),
+    path('admin/episodes/<int:episode_id>/reject/', RejectEpisodeView.as_view(), name='reject-episode'),
+    # Admin story deletion endpoint
+    path('admin/stories/<int:story_id>/delete/', AdminDeleteStoryView.as_view(), name='admin-delete-story'),
 ]

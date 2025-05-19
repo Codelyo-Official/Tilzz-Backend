@@ -68,11 +68,13 @@ class Episode(models.Model):
     PRIVATE = 'private'
     QUARANTINED = 'quarantined'
     REPORTED = 'reported'
+    PENDING = 'pending'  # New status
     STATUS_CHOICES = [
         (PUBLIC, 'Public'),
         (PRIVATE, 'Private'),
         (QUARANTINED, 'Quarantined'),
         (REPORTED, 'Reported'),
+        (PENDING, 'Pending'),  # New status
     ]
     
     title = models.CharField(max_length=200)
@@ -129,8 +131,13 @@ class EpisodeReport(models.Model):
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
         
-        # Check if this episode has 3 or more reports
-        report_count = EpisodeReport.objects.filter(episode=self.episode).count()
+        # Check if this episode has 3 or more pending reports
+        report_count = EpisodeReport.objects.filter(
+            episode=self.episode,
+            status=EpisodeReport.PENDING
+        ).count()
+        
+        # If 3 or more pending reports and episode is not already quarantined, quarantine it
         if report_count >= 3 and self.episode.status != Episode.QUARANTINED:
             self.episode.status = Episode.QUARANTINED
             self.episode.save()
