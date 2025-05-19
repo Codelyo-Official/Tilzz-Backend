@@ -22,20 +22,25 @@ class EpisodeSerializer(serializers.ModelSerializer):
     is_reported = serializers.SerializerMethodField()
     story_title = serializers.SerializerMethodField()
     story_id = serializers.SerializerMethodField()
-
+    reports_count = serializers.SerializerMethodField()
+    
     class Meta:
         model = Episode
         fields = ['id', 'title', 'content', 'version', 'parent_episode', 'created_at', 
                  'has_next', 'has_previous', 'next_id', 'previous_id', 
                  'has_other_version', 'other_version_id', 'previous_version', 'next_version',
-                 'creator', 'creator_username', 'creator_admin', 'is_reported','story_title', 'story_id']
+                 'creator', 'creator_username', 'creator_admin', 'is_reported', 'story_title', 
+                 'story_id', 'status', 'reports_count']
         read_only_fields = ['version', 'parent_episode', 'creator']
     def get_story_title(self, obj):
         return obj.version.story.title
     
     def get_story_id(self, obj):
         return obj.version.story.id
-        
+    
+    def get_reports_count(self, obj):
+        return obj.reports.count()
+    
     def get_is_reported(self, obj):
         # Check if this episode has 3 or more reports
         return EpisodeReport.objects.filter(episode=obj).count() >= 3

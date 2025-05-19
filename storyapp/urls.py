@@ -8,7 +8,7 @@ from .views import (
     SubadminUserListView, AddUserToOrganizationView, AdminStoryManagementView,
     SubadminStoryListView, SubadminStoryVisibilityView, EpisodeReportsView, EpisodeReportViewSet,
     SubmitEpisodeForApprovalView,
-    QuarantinedEpisodesListView
+    QuarantinedEpisodesListView,StoriesWithReportedEpisodesView,UserEpisodesWithReportedStoriesView
 )
 
 router = DefaultRouter()
@@ -20,6 +20,7 @@ router.register('organizations', OrganizationViewSet)
 
 from django.urls import path
 from . import views
+from .views import UserQuarantinedEpisodesView
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -53,9 +54,10 @@ urlpatterns = [
     path('admin/stories/<int:story_id>/visibility/', AdminStoryManagementView.as_view(), name='admin_change_story_visibility'),
     path('episodes/<int:episode_id>/reports/', EpisodeReportsView.as_view(), name='episode-reports'),  # Fix: remove 'views.' prefix
     # Add these to urlpatterns
-    path('api/quarantined-episodes/', QuarantinedEpisodesListView.as_view(), name='quarantined-episodes'),
+    path('api/quarantined-episodes/', UserEpisodesWithReportedStoriesView.as_view(), name='quarantined-episodes'),
+    #path('api/my-quarantined-episodes/', UserQuarantinedEpisodesView.as_view(), name='my-quarantined-episodes'),
     path('api/episodes/<int:episode_id>/submit-for-approval/', SubmitEpisodeForApprovalView.as_view(), name='submit-episode-for-approval'),
-    
+    path('api/stories/with-reported-episodes/', StoriesWithReportedEpisodesView.as_view(), name='stories-with-reported-episodes'),
     # Admin episode review endpoints
     
 ]

@@ -64,12 +64,24 @@ class Version(models.Model):
 
 
 class Episode(models.Model):
+    PUBLIC = 'public'
+    PRIVATE = 'private'
+    QUARANTINED = 'quarantined'
+    REPORTED = 'reported'
+    STATUS_CHOICES = [
+        (PUBLIC, 'Public'),
+        (PRIVATE, 'Private'),
+        (QUARANTINED, 'Quarantined'),
+        (REPORTED, 'Reported'),
+    ]
+    
     title = models.CharField(max_length=200)
     content = models.TextField()
     version = models.ForeignKey(Version, on_delete=models.CASCADE, related_name='episodes')
     parent_episode = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='child_episodes')
     created_at = models.DateTimeField(auto_now_add=True)
     creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='episodes',null=True)
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default=PUBLIC)
     
     def __str__(self):
         return self.title
@@ -113,3 +125,12 @@ class EpisodeReport(models.Model):
 
     def __str__(self):
         return f"Report on episode '{self.episode.title}' by {self.reported_by.username}"
+    
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        
+        # Check if this episode has 3 or more reports
+        report_count = EpisodeReport.objects.filter(episode=self.episode).count()
+        if report_count >= 3 and self.episode.status != Episode.QUARANTINED:
+            self.episode.status = Episode.QUARANTINED
+            self.episode.save()

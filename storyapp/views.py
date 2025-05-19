@@ -703,6 +703,47 @@ from rest_framework.response import Response
 from .models import Story, Episode, Version
 from .serializers import EpisodeSerializer
 
+class UserQuarantinedEpisodesView(generics.ListAPIView):
+    serializer_class = EpisodeSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        """
+        This view returns all quarantined episodes created by the current user
+        """
+        return Episode.objects.filter(
+            creator=self.request.user,
+            status=Episode.QUARANTINED
+        ).order_by('-created_at')
+        
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        episodes = self.filter_queryset(queryset)
+        
+        # Group episodes by story
+        stories_with_episodes = {}
+        
+        for episode in episodes:
+            story = episode.version.story
+            story_id = story.id
+            
+            if story_id not in stories_with_episodes:
+                # Serialize the story
+                story_serializer = StorySerializer(story)
+                stories_with_episodes[story_id] = {
+                    'story': story_serializer.data,
+                    'episodes': []
+                }
+            
+            # Serialize the episode
+            episode_serializer = self.get_serializer(episode)
+            stories_with_episodes[story_id]['episodes'].append(episode_serializer.data)
+        
+        # Convert dictionary to list for response
+        response_data = list(stories_with_episodes.values())
+        
+        return Response(response_data)
+
 class QuarantinedEpisodesListView(generics.ListAPIView):
     serializer_class = EpisodeSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -803,3 +844,127 @@ class RejectEpisodeView(APIView):
             return Response({'detail': 'Episode rejection confirmed'}, status=status.HTTP_200_OK)
         except Episode.DoesNotExist:
             return Response({'error': 'Episode not found'}, status=status.HTTP_404_NOT_FOUND)
+
+class StoriesWithReportedEpisodesView(generics.ListAPIView):
+    serializer_class = StorySerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        # No need to get stories here, we'll be filtering by user's episodes
+        return Story.objects.filter(visibility='quarantined')
+    
+    def list(self, request, *args, **kwargs):
+        # Get all quarantined episodes created by the current user
+        user_quarantined_episodes = Episode.objects.filter(
+            creator=self.request.user,
+            version__story__visibility='quarantined'
+        ).select_related('version__story').distinct()
+        
+        # Group episodes by story
+        stories_with_episodes = {}
+        for episode in user_quarantined_episodes:
+            story = episode.version.story
+            if story.id not in stories_with_episodes:
+                # Serialize the story
+                story_serializer = self.get_serializer(story)
+                stories_with_episodes[story.id] = {
+                    'story': story_serializer.data,
+                    'episodes': []
+                }
+            
+            # Serialize the episode and add to the story's episodes list
+            episode_serializer = EpisodeSerializer(episode)
+            stories_with_episodes[story.id]['episodes'].append(episode_serializer.data)
+        
+        # Convert the dictionary to a list for the response
+        response_data = list(stories_with_episodes.values())
+        
+        return Response(response_data)
+
+class QuarantinedStoriesWithEpisodesView(generics.ListAPIView):
+    serializer_class = StorySerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        return Story.objects.filter(visibility='quarantined')
+    
+    def list(self, request, *args, **kwargs):
+        # Get all quarantined stories
+        quarantined_stories = self.get_queryset()
+        
+        # Prepare response data
+        response_data = []
+        
+        for story in quarantined_stories:
+            # Serialize the story
+            story_serializer = self.get_serializer(story)
+            
+            # Get all episodes for this story
+            episodes = Episode.objects.filter(
+                version__story=story
+            ).select_related('version')
+            
+            # Serialize the episodes
+            episode_serializer = EpisodeSerializer(episodes, many=True)
+            
+            # Add to response data
+            response_data.append({
+                'story': story_serializer.data,
+                'episodes': episode_serializer.data
+            })
+        
+        return Response(response_data)
+
+class UserEpisodesWithReportedStoriesView(generics.ListAPIView):
+    serializer_class = EpisodeSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        """
+        This view returns all episodes created by the current user
+        from stories that have at least one quarantined episode
+        """
+        # First find stories that have quarantined episodes by this user
+        stories_with_quarantined_episodes = Story.objects.filter(
+            versions__episodes__status=Episode.QUARANTINED,
+            versions__episodes__creator=self.request.user
+        ).distinct()
+        
+        # Then get all episodes by the current user from those stories
+        return Episode.objects.filter(
+            creator=self.request.user,
+            version__story__in=stories_with_quarantined_episodes
+        ).select_related('version__story', 'creator')
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        episodes = self.filter_queryset(queryset)
+        
+        # Group episodes by story
+        stories_with_episodes = {}
+        
+        for episode in episodes:
+            story = episode.version.story
+            story_id = story.id
+            
+            if story_id not in stories_with_episodes:
+                # Serialize the story
+                story_serializer = StorySerializer(story)
+                stories_with_episodes[story_id] = {
+                    'story': story_serializer.data,
+                    'quarantined_episodes': [],
+                }
+            
+            # Serialize the episode
+            episode_serializer = self.get_serializer(episode)
+            
+            # Add to appropriate list based on status
+            if episode.status == Episode.QUARANTINED:
+                stories_with_episodes[story_id]['quarantined_episodes'].append(episode_serializer.data)
+           
+        # Convert dictionary to list for response
+        response_data = list(stories_with_episodes.values())
+        
+        return Response(response_data)
+
+        
