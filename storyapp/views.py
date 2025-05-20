@@ -46,7 +46,7 @@ class PublicStoryDetailView(generics.RetrieveAPIView):
 
 class StoryViewSet(viewsets.ModelViewSet):
     serializer_class = StorySerializer
-    permission_classes = [IsCreatorOrReadOnly]
+    permission_classes = [IsCreatorOrReadOnly|IsAdminUser|IsSubadmin]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     
     def get_queryset(self):
@@ -1127,17 +1127,20 @@ class ApproveEpisodeView(APIView):
     
     def post(self, request, episode_id):
         try:
-            episode = Episode.objects.get(id=episode_id, status=Episode.PENDING)
+            # Look for episode with either PENDING or DELETED status
+            episode = Episode.objects.get(
+                id=episode_id, 
+                status__in=[Episode.PENDING, Episode.DELETED]
+            )
             episode.status = Episode.PUBLIC
             episode.save()
             
-            # Update all reports for this episode to rejected
-            #EpisodeReport.objects.filter(episode=episode, status='pending').update(status='rejected')
+            # Delete all reports for this episode
             EpisodeReport.objects.filter(episode=episode).delete()
 
             return Response({'detail': 'Episode approved and made public'}, status=status.HTTP_200_OK)
         except Episode.DoesNotExist:
-            return Response({'error': 'Pending episode not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Episode not found or not in a state that can be approved'}, status=status.HTTP_404_NOT_FOUND)
 
 class RejectEpisodeView(APIView):
     permission_classes = [IsAdmin]
