@@ -69,12 +69,14 @@ class Episode(models.Model):
     QUARANTINED = 'quarantined'
     REPORTED = 'reported'
     PENDING = 'pending'  # New status
+    DELETED = 'deleted'  # Add this line
     STATUS_CHOICES = [
         (PUBLIC, 'Public'),
         (PRIVATE, 'Private'),
         (QUARANTINED, 'Quarantined'),
         (REPORTED, 'Reported'),
         (PENDING, 'Pending'),  # New status
+        (DELETED, 'Deleted'),
     ]
     
     title = models.CharField(max_length=200)

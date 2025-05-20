@@ -841,6 +841,7 @@ class AdminEpisodeReviewView(generics.ListAPIView):
                         stories_dict[story.id] = {
                             'id': story.id,
                             'title': story.title,
+                            'cover_image': story.cover_image.url if story.cover_image else None,
                             'description': story.description,
                             'visibility': story.visibility,
                             'created_at': story.created_at,
@@ -1028,7 +1029,7 @@ class DeleteEpisodeView(generics.UpdateAPIView):
             )
         
         # Change status to pending instead of deleting
-        episode.status = Episode.PENDING
+        episode.status = Episode.DELETED
         episode.save()
         
         return Response(
@@ -1203,7 +1204,7 @@ class AdminDeleteStoryView(generics.DestroyAPIView):
     """
     Allows admins to permanently delete a story
     """
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdminUser|IsSubadmin]
     queryset = Story.objects.all()
     lookup_url_kwarg = 'story_id'
     
