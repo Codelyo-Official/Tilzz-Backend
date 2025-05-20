@@ -9,7 +9,7 @@ from .views import (
     SubadminStoryListView, SubadminStoryVisibilityView, EpisodeReportsView, EpisodeReportViewSet,
     SubmitEpisodeForApprovalView,
     QuarantinedEpisodesListView,StoriesWithReportedEpisodesView,UserEpisodesWithReportedStoriesView,PendingEpisodesView,
-    DeleteEpisodeView,AdminEpisodeReviewView,ApproveEpisodeView,RejectEpisodeView,AdminDeleteStoryView
+    DeleteEpisodeView,AdminEpisodeReviewView,ApproveEpisodeView,RejectEpisodeView,AdminDeleteStoryView,AdminPendingEpisodesView
 )
 
 router = DefaultRouter()
