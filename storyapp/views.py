@@ -799,9 +799,17 @@ class AdminEpisodeReviewView(generics.ListAPIView):
         
         # Group episodes by story
         stories_dict = {}
+        processed_episodes = set()  # Track processed episode IDs
         
         for report_data in serializer.data:
             episode_id = report_data.get('episode')
+            
+            # Skip if we've already processed this episode
+            if episode_id in processed_episodes:
+                continue
+                
+            processed_episodes.add(episode_id)  # Mark as processed
+            
             if episode_id:
                 try:
                     # Get the episode object
@@ -818,8 +826,8 @@ class AdminEpisodeReviewView(generics.ListAPIView):
                         'version': version.id,
                         'parent_episode': episode.parent_episode.id if episode.parent_episode else None,
                         'created_at': episode.created_at,
-                        'has_next': False,  # Will be calculated later if needed
-                        'has_previous': False,  # Will be calculated later if needed
+                        'has_next': False,
+                        'has_previous': False,
                         'next_id': None,
                         'previous_id': None,
                         'has_other_version': False,
@@ -829,7 +837,7 @@ class AdminEpisodeReviewView(generics.ListAPIView):
                         'creator': episode.creator.id if episode.creator else None,
                         'creator_username': episode.creator.username if episode.creator else None,
                         'creator_admin': None,
-                        'is_reported': True,  # Since it's in a report
+                        'is_reported': True,
                         'story_title': story.title,
                         'story_id': story.id,
                         'status': episode.status,
@@ -841,10 +849,10 @@ class AdminEpisodeReviewView(generics.ListAPIView):
                         stories_dict[story.id] = {
                             'id': story.id,
                             'title': story.title,
-                            'cover_image': story.cover_image.url if story.cover_image else None,
                             'description': story.description,
                             'visibility': story.visibility,
                             'created_at': story.created_at,
+                            'cover_image': story.cover_image.url if story.cover_image else None,
                             'creator': {
                                 'id': story.creator.id,
                                 'username': story.creator.username
