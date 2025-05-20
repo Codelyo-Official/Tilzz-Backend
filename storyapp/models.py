@@ -13,10 +13,12 @@ class Story(models.Model):
     PUBLIC = 'public'
     PRIVATE = 'private'
     QUARANTINED = 'quarantined'
+    REPORTED = 'reported'  # New status
     VISIBILITY_CHOICES = [
         (PUBLIC, 'Public'),
         (PRIVATE, 'Private'),
         (QUARANTINED, 'Quarantined'),
+        (REPORTED, 'Reported'),  # New status
     ]
 #    visibility = models.CharField(max_length=20, choices=[('public', 'Public'), ('private', 'Private')], default='public')
 
@@ -62,12 +64,28 @@ class Version(models.Model):
 
 
 class Episode(models.Model):
+    PUBLIC = 'public'
+    PRIVATE = 'private'
+    QUARANTINED = 'quarantined'
+    REPORTED = 'reported'
+    PENDING = 'pending'  # New status
+    DELETED = 'deleted'  # Add this line
+    STATUS_CHOICES = [
+        (PUBLIC, 'Public'),
+        (PRIVATE, 'Private'),
+        (QUARANTINED, 'Quarantined'),
+        (REPORTED, 'Reported'),
+        (PENDING, 'Pending'),  # New status
+        (DELETED, 'Deleted'),
+    ]
+    
     title = models.CharField(max_length=200)
     content = models.TextField()
     version = models.ForeignKey(Version, on_delete=models.CASCADE, related_name='episodes')
     parent_episode = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='child_episodes')
     created_at = models.DateTimeField(auto_now_add=True)
     creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='episodes',null=True)
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default=PUBLIC)
     
     def __str__(self):
         return self.title
@@ -91,3 +109,37 @@ class StoryReport(models.Model):
 
     def __str__(self):
         return f"Report on '{self.story.title}' by {self.reported_by.username}"
+
+
+class EpisodeReport(models.Model):
+    PENDING = 'pending'
+    APPROVED = 'approved'
+    REJECTED = 'rejected'
+    STATUS_CHOICES = [
+        (PENDING, 'Pending'),
+        (APPROVED, 'Approved'),
+        (REJECTED, 'Rejected'),
+    ]
+    
+    episode = models.ForeignKey(Episode, on_delete=models.CASCADE, related_name='reports')
+    reported_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    reason = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=PENDING)
+
+    def __str__(self):
+        return f"Report on episode '{self.episode.title}' by {self.reported_by.username}"
+    
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        
+        # Check if this episode has 3 or more pending reports
+        report_count = EpisodeReport.objects.filter(
+            episode=self.episode,
+            status=EpisodeReport.PENDING
+        ).count()
+        
+        # If 3 or more pending reports and episode is not already quarantined, quarantine it
+        if report_count >= 3 and self.episode.status != Episode.QUARANTINED:
+            self.episode.status = Episode.QUARANTINED
+            self.episode.save()

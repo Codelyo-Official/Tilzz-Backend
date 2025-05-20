@@ -5,8 +5,11 @@ from .views import (
     AddToFavoritesView, RemoveFromFavoritesView, ChangeUserRoleView, CreateUserView,
     AssignUserToSubadminView, RemoveUserAssignmentView, ListAssignedUsersView,
     CreateOrganizationView, ListOrganizationsView, OrganizationDetailView,
-    AddMemberToOrganizationView, RemoveMemberFromOrganizationView
+    RemoveMemberFromOrganizationView,
+    DeleteUserView, SubadminDeleteUserView, DeleteOrganizationView,AddMultipleMembersToOrganizationView
 )
+
+from storyapp.views import AdminEpisodeReviewView, ApproveEpisodeView, RejectEpisodeView
 from rest_framework.authtoken.views import obtain_auth_token
 
 urlpatterns = [
@@ -33,6 +36,19 @@ urlpatterns = [
     path('organizations/', CreateOrganizationView.as_view(), name='create_organization'),
     path('organizations/list/', ListOrganizationsView.as_view(), name='list_organizations'),
     path('organizations/<int:pk>/', OrganizationDetailView.as_view(), name='organization_detail'),
-    path('organizations/<int:organization_id>/add-member/<int:user_id>/', AddMemberToOrganizationView.as_view(), name='add_member_to_organization'),
+    #path('organizations/<int:organization_id>/add-member/<int:user_id>/', AddMemberToOrganizationView.as_view(), name='add_member_to_organization'),
+    # Add this URL pattern to your urlpatterns list
+    path('organizations/<int:organization_id>/add-member/', AddMultipleMembersToOrganizationView.as_view(), name='add_multiple_members_to_organization'),
     path('organizations/<int:organization_id>/remove-member/<int:user_id>/', RemoveMemberFromOrganizationView.as_view(), name='remove_member_from_organization'),
+
+    path('admin/episodes/pending-review/', AdminEpisodeReviewView.as_view(), name='admin-episode-review'),
+    path('admin/episodes/<int:episode_id>/approve/', ApproveEpisodeView.as_view(), name='approve-episode'),
+    path('admin/episodes/<int:episode_id>/reject/', RejectEpisodeView.as_view(), name='reject-episode'),
+    
+    # User deletion endpoints
+    path('admin/users/<int:user_id>/delete/', DeleteUserView.as_view(), name='admin_delete_user'),
+    path('subadmin/users/<int:user_id>/delete/', SubadminDeleteUserView.as_view(), name='subadmin_delete_user'),
+    
+    # Organization deletion endpoint
+    path('organizations/<int:organization_id>/delete/', DeleteOrganizationView.as_view(), name='delete_organization'),
 ]
