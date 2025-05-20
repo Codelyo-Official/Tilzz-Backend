@@ -880,6 +880,83 @@ class AdminEpisodeReviewView(generics.ListAPIView):
                 except (Episode.DoesNotExist, Story.DoesNotExist):
                     continue
         
+        # Now add episodes with status 'deleted'
+        deleted_episodes = Episode.objects.filter(status=Episode.DELETED)
+        
+        for episode in deleted_episodes:
+            # Skip if we've already processed this episode
+            if episode.id in processed_episodes:
+                continue
+                
+            processed_episodes.add(episode.id)  # Mark as processed
+            
+            try:
+                # Get the version and story
+                version = episode.version
+                story = version.story
+                
+                # Create episode data with all details
+                episode_data = {
+                    'id': episode.id,
+                    'title': episode.title,
+                    'content': episode.content,
+                    'version': version.id,
+                    'parent_episode': episode.parent_episode.id if episode.parent_episode else None,
+                    'created_at': episode.created_at,
+                    'has_next': False,
+                    'has_previous': False,
+                    'next_id': None,
+                    'previous_id': None,
+                    'has_other_version': False,
+                    'other_version_id': None,
+                    'previous_version': None,
+                    'next_version': None,
+                    'creator': episode.creator.id if episode.creator else None,
+                    'creator_username': episode.creator.username if episode.creator else None,
+                    'creator_admin': None,
+                    'is_reported': False,  # Not reported, just deleted
+                    'story_title': story.title,
+                    'story_id': story.id,
+                    'status': episode.status,
+                    'reports_count': 0  # No reports for deleted episodes
+                }
+                
+                # Initialize story if not exists
+                if story.id not in stories_dict:
+                    stories_dict[story.id] = {
+                        'id': story.id,
+                        'title': story.title,
+                        'description': story.description,
+                        'visibility': story.visibility,
+                        'created_at': story.created_at,
+                        'cover_image': story.cover_image.url if story.cover_image else None,
+                        'creator': {
+                            'id': story.creator.id,
+                            'username': story.creator.username
+                        } if story.creator else None,
+                        'versions': {}
+                    }
+                
+                # Initialize version if not exists
+                if version.id not in stories_dict[story.id]['versions']:
+                    stories_dict[story.id]['versions'][version.id] = {
+                        'id': version.id,
+                        'story': story.id,
+                        'version_number': version.version_number,
+                        'created_at': version.created_at,
+                        'has_next': False,
+                        'has_previous': False,
+                        'next_id': None,
+                        'previous_id': None,
+                        'episodes': []
+                    }
+                
+                # Add episode to version
+                stories_dict[story.id]['versions'][version.id]['episodes'].append(episode_data)
+                
+            except (Story.DoesNotExist):
+                continue
+        
         # Convert the nested dictionary to the desired format
         result = []
         for story_id, story_data in stories_dict.items():
@@ -1055,8 +1132,9 @@ class ApproveEpisodeView(APIView):
             episode.save()
             
             # Update all reports for this episode to rejected
-            EpisodeReport.objects.filter(episode=episode, status='pending').update(status='rejected')
-            
+            #EpisodeReport.objects.filter(episode=episode, status='pending').update(status='rejected')
+            EpisodeReport.objects.filter(episode=episode).delete()
+
             return Response({'detail': 'Episode approved and made public'}, status=status.HTTP_200_OK)
         except Episode.DoesNotExist:
             return Response({'error': 'Pending episode not found'}, status=status.HTTP_404_NOT_FOUND)
