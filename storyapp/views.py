@@ -52,10 +52,19 @@ class StoryViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.is_authenticated:
-            # If authenticated, show public stories and user's own stories
-            return Story.objects.filter(Q(visibility='public') | Q(creator=user))
-        # If not authenticated, only show public stories
-        return Story.objects.filter(visibility='public')
+            # If authenticated, show public stories, user's own stories, and specific visibility statuses
+            return Story.objects.filter(
+                Q(visibility='public') | 
+                Q(creator=user) | 
+                Q(visibility='Quarantined') | 
+                Q(visibility='Reported')
+            )
+        # For non-authenticated users, show public, quarantined, and reported stories
+        return Story.objects.filter(
+            Q(visibility='public') | 
+            Q(visibility='Quarantined') | 
+            Q(visibility='Reported'
+        ))
     
     def perform_create(self, serializer):
         serializer.save(creator=self.request.user)
