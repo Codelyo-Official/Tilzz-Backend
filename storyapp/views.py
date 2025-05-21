@@ -42,13 +42,13 @@ class PublicStoryListView(generics.ListAPIView):
             return Story.objects.filter(
                 Q(visibility='public') | 
                 Q(creator=user) | 
-                Q(visibility='Quarantined') | 
-                Q(visibility='Reported')
+                Q(visibility='quarantined') | 
+                Q(visibility='reported')
             )
         return Story.objects.filter(
             Q(visibility='public') | 
-            Q(visibility='Quarantined') | 
-            Q(visibility='Reported'
+            Q(visibility='quarantined') | 
+            Q(visibility='reported'
         ))
 
 class PublicStoryDetailView(generics.RetrieveAPIView):
@@ -61,8 +61,8 @@ class PublicStoryDetailView(generics.RetrieveAPIView):
             return Story.objects.filter(
                 Q(visibility='public') | 
                 Q(creator=user) | 
-                Q(visibility='Quarantined') | 
-                Q(visibility='Reported')
+                Q(visibility='quarantined') | 
+                Q(visibility='r eported')
             )
         return Story.objects.filter(
             Q(visibility='public') | 
@@ -82,14 +82,14 @@ class StoryViewSet(viewsets.ModelViewSet):
             return Story.objects.filter(
                 Q(visibility='public') | 
                 Q(creator=user) | 
-                Q(visibility='Quarantined') | 
-                Q(visibility='Reported')
+                Q(visibility='quarantined') | 
+                Q(visibility='reported')
             )
         # For non-authenticated users, show public, quarantined, and reported stories
         return Story.objects.filter(
             Q(visibility='public') | 
-            Q(visibility='Quarantined') | 
-            Q(visibility='Reported'
+            Q(visibility='quarantined') | 
+            Q(visibility='reported'
         ))
     
     def perform_create(self, serializer):
@@ -817,7 +817,8 @@ class SubmitEpisodeForApprovalView(APIView):
             # Update the status to pending
             episode.status = Episode.PENDING
             episode.save()
-            
+            EpisodeReport.objects.filter(episode=episode, status='approved').update(status='pending')
+
             return Response({'detail': 'Episode submitted for approval successfully'}, status=status.HTTP_200_OK)
         except Episode.DoesNotExist:
             return Response({'error': 'Episode not found'}, status=status.HTTP_404_NOT_FOUND)
