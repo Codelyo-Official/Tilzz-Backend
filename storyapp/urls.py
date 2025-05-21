@@ -15,7 +15,8 @@ from .views import (
 router = DefaultRouter()
 router.register(r'stories', StoryViewSet, basename='story')
 router.register(r'versions', VersionViewSet)
-router.register(r'episodes', EpisodeViewSet)
+#router.register(r'episodes', EpisodeViewSet)
+router.register(r'episodes', EpisodeViewSet, basename='episode')
 router.register(r'episode-reports', EpisodeReportViewSet)  # Fix: remove 'views.' prefix
 router.register('organizations', OrganizationViewSet)
 

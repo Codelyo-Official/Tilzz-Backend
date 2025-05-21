@@ -36,26 +36,61 @@ class PublicStoryListView(generics.ListAPIView):
     serializer_class = StorySerializer
     
     def get_queryset(self):
-        return Story.objects.filter(visibility='public')
+        user = self.request.user
+        #return Story.objects.filter(visibility='public')
+        if user.is_authenticated:
+            return Story.objects.filter(
+                Q(visibility='public') | 
+                Q(creator=user) | 
+                Q(visibility='quarantined') | 
+                Q(visibility='reported')
+            )
+        return Story.objects.filter(
+            Q(visibility='public') | 
+            Q(visibility='quarantined') | 
+            Q(visibility='reported'
+        ))
 
 class PublicStoryDetailView(generics.RetrieveAPIView):
     serializer_class = StorySerializer
     
     def get_queryset(self):
-        return Story.objects.filter(visibility='public')
+        user = self.request.user
+        if user.is_authenticated:
+            #return Story.objects.filter(visibility='public')
+            return Story.objects.filter(
+                Q(visibility='public') | 
+                Q(creator=user) | 
+                Q(visibility='quarantined') | 
+                Q(visibility='r eported')
+            )
+        return Story.objects.filter(
+            Q(visibility='public') | 
+            Q(visibility='Quarantined') | 
+            Q(visibility='Reported'
+        ))
 
 class StoryViewSet(viewsets.ModelViewSet):
     serializer_class = StorySerializer
-    permission_classes = [IsCreatorOrReadOnly]
+    permission_classes = [IsCreatorOrReadOnly|IsAdminUser|IsSubadmin]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     
     def get_queryset(self):
         user = self.request.user
         if user.is_authenticated:
-            # If authenticated, show public stories and user's own stories
-            return Story.objects.filter(Q(visibility='public') | Q(creator=user))
-        # If not authenticated, only show public stories
-        return Story.objects.filter(visibility='public')
+            # If authenticated, show public stories, user's own stories, and specific visibility statuses
+            return Story.objects.filter(
+                Q(visibility='public') | 
+                Q(creator=user) | 
+                Q(visibility='quarantined') | 
+                Q(visibility='reported')
+            )
+        # For non-authenticated users, show public, quarantined, and reported stories
+        return Story.objects.filter(
+            Q(visibility='public') | 
+            Q(visibility='quarantined') | 
+            Q(visibility='reported'
+        ))
     
     def perform_create(self, serializer):
         serializer.save(creator=self.request.user)
@@ -122,7 +157,8 @@ class VersionViewSet(viewsets.ModelViewSet):
     queryset = Version.objects.all()
     serializer_class = VersionSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
-    
+    #permission_classes = [IsCreatorOrReadOnly|IsAdminUser|IsSubadmin]
+
     # We no longer need to handle version creation manually
     # The perform_create method can be removed
     
@@ -162,7 +198,8 @@ class EpisodeViewSet(viewsets.ModelViewSet):
     queryset = Episode.objects.all()
     serializer_class = EpisodeSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
-    
+    #permission_classes = [IsCreatorOrReadOnly|IsAdminUser|IsSubadmin]
+
     def create(self, request, *args, **kwargs):
         # Get story_id from URL if present
         story_id = self.kwargs.get('story_id')
@@ -780,7 +817,8 @@ class SubmitEpisodeForApprovalView(APIView):
             # Update the status to pending
             episode.status = Episode.PENDING
             episode.save()
-            
+            EpisodeReport.objects.filter(episode=episode, status='approved').update(status='pending')
+
             return Response({'detail': 'Episode submitted for approval successfully'}, status=status.HTTP_200_OK)
         except Episode.DoesNotExist:
             return Response({'error': 'Episode not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -1127,17 +1165,20 @@ class ApproveEpisodeView(APIView):
     
     def post(self, request, episode_id):
         try:
-            episode = Episode.objects.get(id=episode_id, status=Episode.PENDING)
+            # Look for episode with either PENDING or DELETED status
+            episode = Episode.objects.get(
+                id=episode_id, 
+                status__in=[Episode.PENDING, Episode.DELETED]
+            )
             episode.status = Episode.PUBLIC
             episode.save()
             
-            # Update all reports for this episode to rejected
-            #EpisodeReport.objects.filter(episode=episode, status='pending').update(status='rejected')
+            # Delete all reports for this episode
             EpisodeReport.objects.filter(episode=episode).delete()
 
             return Response({'detail': 'Episode approved and made public'}, status=status.HTTP_200_OK)
         except Episode.DoesNotExist:
-            return Response({'error': 'Pending episode not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Episode not found or not in a state that can be approved'}, status=status.HTTP_404_NOT_FOUND)
 
 class RejectEpisodeView(APIView):
     permission_classes = [IsAdmin]
