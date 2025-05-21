@@ -36,13 +36,39 @@ class PublicStoryListView(generics.ListAPIView):
     serializer_class = StorySerializer
     
     def get_queryset(self):
-        return Story.objects.filter(visibility='public')
+        user = self.request.user
+        #return Story.objects.filter(visibility='public')
+        if user.is_authenticated:
+            return Story.objects.filter(
+                Q(visibility='public') | 
+                Q(creator=user) | 
+                Q(visibility='Quarantined') | 
+                Q(visibility='Reported')
+            )
+        return Story.objects.filter(
+            Q(visibility='public') | 
+            Q(visibility='Quarantined') | 
+            Q(visibility='Reported'
+        ))
 
 class PublicStoryDetailView(generics.RetrieveAPIView):
     serializer_class = StorySerializer
     
     def get_queryset(self):
-        return Story.objects.filter(visibility='public')
+        user = self.request.user
+        if user.is_authenticated:
+            #return Story.objects.filter(visibility='public')
+            return Story.objects.filter(
+                Q(visibility='public') | 
+                Q(creator=user) | 
+                Q(visibility='Quarantined') | 
+                Q(visibility='Reported')
+            )
+        return Story.objects.filter(
+            Q(visibility='public') | 
+            Q(visibility='Quarantined') | 
+            Q(visibility='Reported'
+        ))
 
 class StoryViewSet(viewsets.ModelViewSet):
     serializer_class = StorySerializer
@@ -130,8 +156,8 @@ class StoryViewSet(viewsets.ModelViewSet):
 class VersionViewSet(viewsets.ModelViewSet):
     queryset = Version.objects.all()
     serializer_class = VersionSerializer
-    #permission_classes = [IsAuthenticatedOrReadOnly]
-    permission_classes = [IsCreatorOrReadOnly|IsAdminUser|IsSubadmin]
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    #permission_classes = [IsCreatorOrReadOnly|IsAdminUser|IsSubadmin]
 
     # We no longer need to handle version creation manually
     # The perform_create method can be removed
@@ -171,8 +197,8 @@ class VersionViewSet(viewsets.ModelViewSet):
 class EpisodeViewSet(viewsets.ModelViewSet):
     queryset = Episode.objects.all()
     serializer_class = EpisodeSerializer
-    #permission_classes = [IsAuthenticatedOrReadOnly]
-    permission_classes = [IsCreatorOrReadOnly|IsAdminUser|IsSubadmin]
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    #permission_classes = [IsCreatorOrReadOnly|IsAdminUser|IsSubadmin]
 
     def create(self, request, *args, **kwargs):
         # Get story_id from URL if present
