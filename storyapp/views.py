@@ -130,8 +130,9 @@ class StoryViewSet(viewsets.ModelViewSet):
 class VersionViewSet(viewsets.ModelViewSet):
     queryset = Version.objects.all()
     serializer_class = VersionSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
-    
+    #permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [IsCreatorOrReadOnly|IsAdminUser|IsSubadmin]
+
     # We no longer need to handle version creation manually
     # The perform_create method can be removed
     
@@ -170,8 +171,9 @@ class VersionViewSet(viewsets.ModelViewSet):
 class EpisodeViewSet(viewsets.ModelViewSet):
     queryset = Episode.objects.all()
     serializer_class = EpisodeSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
-    
+    #permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [IsCreatorOrReadOnly|IsAdminUser|IsSubadmin]
+
     def create(self, request, *args, **kwargs):
         # Get story_id from URL if present
         story_id = self.kwargs.get('story_id')
