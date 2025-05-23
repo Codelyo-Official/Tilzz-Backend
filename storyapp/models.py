@@ -121,7 +121,7 @@ class EpisodeReport(models.Model):
         (REJECTED, 'Rejected'),
     ]
     
-    episode = models.ForeignKey(Episode, on_delete=models.CASCADE, related_name='reports')
+    episode = models.ForeignKey('Episode', on_delete=models.CASCADE, related_name='reports')
     reported_by = models.ForeignKey(User, on_delete=models.CASCADE)
     reason = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -129,6 +129,9 @@ class EpisodeReport(models.Model):
 
     def __str__(self):
         return f"Report on episode '{self.episode.title}' by {self.reported_by.username}"
+
+    class Meta:
+        ordering = ['-created_at']
     
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
