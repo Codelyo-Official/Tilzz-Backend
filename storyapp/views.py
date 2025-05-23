@@ -378,43 +378,22 @@ class EpisodeReportViewSet(viewsets.ModelViewSet):
     queryset = EpisodeReport.objects.all()
     serializer_class = EpisodeReportSerializer
     permission_classes = [IsAuthenticated]
-    
+
     def perform_create(self, serializer):
-        # Save the report with the current user as reporter
-        report = serializer.save(reported_by=self.request.user)
-        
-        # Check if this report triggered quarantine
-        episode = report.episode
+        episode = serializer.validated_data['episode']
         report_count = EpisodeReport.objects.filter(episode=episode).count()
-        
-        # Add a message to the response
+        serializer.save(reported_by=self.request.user)
+
         if report_count >= 3:
-            story = episode.version.story
-            if story.visibility == 'quarantined':
-                self.message = "This episode has been automatically quarantined due to multiple reports."
-    
+            episode.status = Episode.QUARANTINED
+            episode.save()
+
     def create(self, request, *args, **kwargs):
         response = super().create(request, *args, **kwargs)
-        if hasattr(self, 'message'):
-            response.data['message'] = self.message
+        episode = Episode.objects.get(id=response.data['episode'])
+        if episode.status == Episode.QUARANTINED:
+            response.data['message'] = 'Episode has been quarantined due to multiple reports'
         return response
-        
-        # Check if this episode's story has reached the report threshold
-        episode = Episode.objects.get(id=serializer.validated_data['episode'].id)
-        story = episode.version.story
-        
-        # Count total reports for this story (including all episodes)
-        story_reports_count = StoryReport.objects.filter(story=story).count()
-        
-        # Count reports for all episodes in this story
-        episode_reports_count = EpisodeReport.objects.filter(
-            episode__version__story=story
-        ).count()
-        
-        # If total reports >= 3, mark the story as reported
-        if story_reports_count + episode_reports_count >= 3:
-            story.visibility = 'reported'  # Make sure 'reported' is a valid choice in your Story model
-            story.save()
 
 class StoryReportViewSet(viewsets.ModelViewSet):
     queryset = StoryReport.objects.all()

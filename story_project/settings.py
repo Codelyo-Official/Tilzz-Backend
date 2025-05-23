@@ -9,7 +9,6 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
-import dj_database_url
 from pathlib import Path
 import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -26,6 +25,9 @@ SECRET_KEY = "django-insecure-i^ktn26lrgt#o9)r#4me2ep$04!p0hs)#=6_i(fiwhh)#db+6)
 DEBUG = False
 
 ALLOWED_HOSTS = ["127.0.0.1", "localhost", "ahmedkh.pythonanywhere.com"]
+
+# Add this setting to allow serving media files in production
+SERVE_MEDIA = True
 
 
 # Application definition
@@ -83,18 +85,18 @@ WSGI_APPLICATION = "story_project.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-'''DATABASES = {
+DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
     }
-}'''
+}
 # Replace it with your DATABASES.
-DATABASES = {
+'''DATABASES = {
     'default': dj_database_url.config(
         default="sqlite:///" + os.path.join(BASE_DIR, "db.sqlite3")
     )
-}
+}'''
 
 
 # Password validation
@@ -132,7 +134,6 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = "static/"
-STATIC_ROOT = os.path.join(BASE_DIR, 'static/')
 
 # Media files (User uploaded files)
 MEDIA_URL = '/media/'

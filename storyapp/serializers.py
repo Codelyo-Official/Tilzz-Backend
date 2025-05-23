@@ -23,15 +23,17 @@ class EpisodeSerializer(serializers.ModelSerializer):
     story_title = serializers.SerializerMethodField()
     story_id = serializers.SerializerMethodField()
     reports_count = serializers.SerializerMethodField()
-    
+    reporting_users = serializers.SerializerMethodField()
     class Meta:
         model = Episode
         fields = ['id', 'title', 'content', 'version', 'parent_episode', 'created_at', 
                  'has_next', 'has_previous', 'next_id', 'previous_id', 
                  'has_other_version', 'other_version_id', 'previous_version', 'next_version',
                  'creator', 'creator_username', 'creator_admin', 'is_reported', 'story_title', 
-                 'story_id', 'status', 'reports_count']
+                 'story_id', 'status', 'reports_count','reporting_users']
         read_only_fields = ['version', 'parent_episode', 'creator']
+    def get_reporting_users(self, obj):
+        return list(obj.reports.values_list('reported_by__username', flat=True))
     def get_story_title(self, obj):
         return obj.version.story.title
     
@@ -268,11 +270,19 @@ class StoryReportSerializer(serializers.ModelSerializer):
 class EpisodeReportSerializer(serializers.ModelSerializer):
     reporter_username = serializers.ReadOnlyField(source='reported_by.username')
     episode_title = serializers.ReadOnlyField(source='episode.title')
+    reports_count = serializers.SerializerMethodField()
+    
     
     class Meta:
         model = EpisodeReport
-        fields = '__all__'
+        fields = ['id', 'episode', 'reported_by', 'reporter_username', 'episode_title', 'reason', 'created_at', 'status', 'reports_count']
         read_only_fields = ['reported_by']
 
+    def get_reports_count(self, obj):
+        return obj.episode.reports.count()
+
+    def get_reporting_users(self, obj):
+        return list(obj.reports.values_list('reported_by__username', flat=True))
+    
 
 
