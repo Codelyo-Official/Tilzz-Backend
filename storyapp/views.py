@@ -72,7 +72,7 @@ class PublicStoryDetailView(generics.RetrieveAPIView):
 
 class StoryViewSet(viewsets.ModelViewSet):
     serializer_class = StorySerializer
-    permission_classes = [IsCreatorOrReadOnly|IsAdminUser|IsSubadmin]
+    permission_classes = [IsCreatorOrReadOnly|IsAdmin|IsSubadmin]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     
     def get_queryset(self):
@@ -199,6 +199,22 @@ class EpisodeViewSet(viewsets.ModelViewSet):
     serializer_class = EpisodeSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
     #permission_classes = [IsCreatorOrReadOnly|IsAdminUser|IsSubadmin]
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def like(self, request, pk=None):
+        episode = self.get_object()
+        if request.user in episode.liked_by.all():
+            return Response({'detail': 'Already liked.'}, status=status.HTTP_400_BAD_REQUEST)
+        episode.liked_by.add(request.user)
+        return Response({'detail': 'Liked successfully.'}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def unlike(self, request, pk=None):
+        episode = self.get_object()
+        if request.user not in episode.liked_by.all():
+            return Response({'detail': 'Not liked yet.'}, status=status.HTTP_400_BAD_REQUEST)
+        episode.liked_by.remove(request.user)
+        return Response({'detail': 'Unliked successfully.'}, status=status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
         # Get story_id from URL if present
@@ -384,7 +400,7 @@ class EpisodeReportViewSet(viewsets.ModelViewSet):
         report_count = EpisodeReport.objects.filter(episode=episode).count()
         serializer.save(reported_by=self.request.user)
 
-        if report_count >= 3:
+        if report_count >= 1:
             episode.status = Episode.QUARANTINED
             episode.save()
 
@@ -416,7 +432,7 @@ class StoryReportViewSet(viewsets.ModelViewSet):
         ).count()
         
         # If total reports >= 3, mark the story as reported
-        if story_reports_count + episode_reports_count >= 3:
+        if story_reports_count + episode_reports_count >= 1:
             story.visibility = Story.REPORTED
             story.save()
 
@@ -430,7 +446,7 @@ class AdminUserListView(generics.ListAPIView):
     permission_classes = [IsAdmin]  # Changed from IsAdminUser
 
 class MakeSubadminView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdmin]
     
     def post(self, request, user_id):
         try:
@@ -452,18 +468,18 @@ class MakeSubadminView(APIView):
 class OrganizationViewSet(viewsets.ModelViewSet):
     queryset = Organization.objects.all()
     serializer_class = OrganizationSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdmin]
 
 class QuarantinedStoriesView(generics.ListAPIView):
     serializer_class = StorySerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdmin]
     
     def get_queryset(self):
         return Story.objects.filter(visibility='quarantined')
 
 class EpisodeReportsView(generics.ListAPIView):
     serializer_class = EpisodeReportSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdmin]
     
     def get_queryset(self):
         episode_id = self.kwargs.get('episode_id')
@@ -471,14 +487,14 @@ class EpisodeReportsView(generics.ListAPIView):
 
 class StoryReportsView(generics.ListAPIView):
     serializer_class = StoryReportSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdmin]
     
     def get_queryset(self):
         story_id = self.kwargs.get('story_id')
         return StoryReport.objects.filter(story_id=story_id)
 
 class ApproveStoryView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdmin]
     
     def post(self, request, story_id):
         try:
@@ -494,7 +510,7 @@ class ApproveStoryView(APIView):
             return Response({'error': 'Quarantined story not found'}, status=status.HTTP_404_NOT_FOUND)
 
 class RejectStoryView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdmin]
     
     def post(self, request, story_id):
         try:
@@ -1140,7 +1156,7 @@ class DeleteEpisodeView(generics.UpdateAPIView):
         )
 
 class ApproveEpisodeView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdmin]
     
     def post(self, request, episode_id):
         try:
@@ -1301,7 +1317,7 @@ class UserEpisodesWithReportedStoriesView(generics.ListAPIView):
 
 class PendingEpisodesView(generics.ListAPIView):
     serializer_class = EpisodeSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdmin]
     
     def get_queryset(self):
         return Episode.objects.filter(status=Episode.PENDING).select_related('version__story', 'creator')
@@ -1310,7 +1326,7 @@ class AdminDeleteStoryView(generics.DestroyAPIView):
     """
     Allows admins to permanently delete a story
     """
-    permission_classes = [IsAdminUser|IsSubadmin]
+    permission_classes = [IsAdmin|IsSubadmin]
     queryset = Story.objects.all()
     lookup_url_kwarg = 'story_id'
     

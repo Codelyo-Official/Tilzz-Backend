@@ -13,6 +13,49 @@ from .models import Profile
 from storyapp.models import Story
 from storyapp.serializers import StorySerializer
 
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib import messages
+from django.core.mail import send_mail
+from datetime import datetime, timedelta
+from django.db.models.functions import TruncDate
+from django.db.models import Count, DateField
+import random
+
+
+class UserActivityStatsView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        # Get date 30 days ago
+        thirty_days_ago = datetime.now() - timedelta(days=30)
+        
+        # Get signups by day
+        signups = User.objects.filter(
+            date_joined__gte=thirty_days_ago
+        ).annotate(
+            date=TruncDate('date_joined', output_field=DateField())
+        ).values('date').annotate(
+            count=Count('id')
+        ).order_by('date')
+        
+        # Get logins by day (assuming you're using Django's last_login field)
+        logins = User.objects.filter(
+            last_login__gte=thirty_days_ago
+        ).annotate(
+            date=TruncDate('last_login', output_field=DateField())
+        ).values('date').annotate(
+            count=Count('id')
+        ).order_by('date')
+        
+        # Format response
+        response_data = {
+            'signups': list(signups),
+            'logins': list(logins)
+        }
+        
+        return Response(response_data)
+
+
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserRegisterSerializer
@@ -791,3 +834,50 @@ class DeleteUserView(APIView):
             
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+# Password reset request view
+@csrf_exempt
+@api_view(['POST'])
+def password_reset_request(request):
+    email = request.data.get('email')
+    try:
+        user = User.objects.get(email=email)
+        # Generate 6-digit code
+        reset_code = str(random.randint(100000, 999999))
+        # Store code in user's profile (or session)
+        profile = user.profile
+        profile.reset_code = reset_code
+        profile.save()
+        
+        # Send email with reset code
+        send_mail(
+            'Password Reset Code',
+            f'Your password reset code is: {reset_code}',
+            'noreply@yourdomain.com',
+            [email],
+            fail_silently=False,
+        )
+        return Response({'detail': 'Reset code sent to your email'}, status=status.HTTP_200_OK)
+    except User.DoesNotExist:
+        return Response({'error': 'No user with that email address'}, status=status.HTTP_404_NOT_FOUND)
+
+@csrf_exempt
+@api_view(['POST'])
+def verify_reset_code(request):
+    email = request.data.get('email')
+    code = request.data.get('code')
+    new_password = request.data.get('new_password')
+    
+    try:
+        user = User.objects.get(email=email)
+        if user.profile.reset_code == code:
+            user.set_password(new_password)
+            user.save()
+            # Clear reset code
+            user.profile.reset_code = None
+            user.profile.save()
+            return Response({'detail': 'Password updated successfully'}, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': 'Invalid reset code'}, status=status.HTTP_400_BAD_REQUEST)
+    except User.DoesNotExist:
+        return Response({'error': 'Invalid email'}, status=status.HTTP_404_NOT_FOUND)

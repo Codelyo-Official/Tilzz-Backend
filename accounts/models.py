@@ -18,6 +18,7 @@ class Profile(models.Model):
     favorite_stories = models.ManyToManyField(Story, related_name='favorited_by', blank=True)
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='user')
     assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_users')
+    reset_code = models.CharField(max_length=6, blank=True, null=True)
 
 @receiver(post_save, sender=User)
 def create_user_profile(sender, instance, created, **kwargs):
