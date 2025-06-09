@@ -6,7 +6,24 @@ from .models import Organization
 class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
-        fields = ['bio', 'profile_picture', 'role']
+        fields = ['bio', 'profile_picture', 'role', 'assigned_to', 'reset_code']
+        extra_kwargs = {
+            'profile_picture': {'required': False},
+            'role': {'read_only': True},
+            'assigned_to': {'read_only': True},
+            'reset_code': {'read_only': True}
+        }
+    def update(self, instance, validated_data):
+        # Update user fields
+        user = instance.user
+        user.email = validated_data.get('email', user.email)
+        user.save()
+        
+        # Update profile fields
+        instance.bio = validated_data.get('bio', instance.bio)
+        instance.profile_picture = validated_data.get('profile_picture', instance.profile_picture)
+        instance.save()
+        return instance
 
 class UserSerializer(serializers.ModelSerializer):
     profile = ProfileSerializer(read_only=True)

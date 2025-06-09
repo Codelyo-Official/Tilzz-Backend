@@ -126,6 +126,24 @@ class ProfileView(generics.RetrieveUpdateAPIView):
     
     def get_object(self):
         return self.request.user.profile
+    
+    def update(self, request, *args, **kwargs):
+        profile = self.get_object()
+        user = request.user
+        
+        # Handle profile fields
+        profile_serializer = self.get_serializer(profile, data=request.data, partial=True)
+        profile_serializer.is_valid(raise_exception=True)
+        profile_serializer.save()
+        
+        # Handle user fields (email, username)
+        if 'email' in request.data:
+            user.email = request.data['email']
+            user.save()
+        if 'username' in request.data:
+            user.username = request.data['username']
+            user.save()
+        return Response(profile_serializer.data)
 
 class FollowUserView(APIView):
     permission_classes = [IsAuthenticated]
