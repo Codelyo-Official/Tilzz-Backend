@@ -26,34 +26,41 @@ class UserActivityStatsView(APIView):
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        # Get date 30 days ago
         thirty_days_ago = datetime.now() - timedelta(days=30)
         
-        # Get signups by day
-        signups = User.objects.filter(
-            date_joined__gte=thirty_days_ago
-        ).annotate(
-            date=TruncDate('date_joined', output_field=DateField())
-        ).values('date').annotate(
-            count=Count('id')
-        ).order_by('date')
+        if request.user.profile.role == 'admin':
+            # Admin sees all signups and logins
+            signups = User.objects.filter(
+                date_joined__gte=thirty_days_ago
+            ).annotate(
+                date=TruncDate('date_joined')
+            ).values('date').annotate(count=Count('id')).order_by('date')
+            
+            logins = User.objects.filter(
+                last_login__gte=thirty_days_ago
+            ).annotate(
+                date=TruncDate('last_login')
+            ).values('date').annotate(count=Count('id')).order_by('date')
+        else:
+            # Subadmin only sees their assigned users
+            assigned_users = User.objects.filter(profile__assigned_to=request.user)
+            
+            signups = assigned_users.filter(
+                date_joined__gte=thirty_days_ago
+            ).annotate(
+                date=TruncDate('date_joined')
+            ).values('date').annotate(count=Count('id')).order_by('date')
+            
+            logins = assigned_users.filter(
+                last_login__gte=thirty_days_ago
+            ).annotate(
+                date=TruncDate('last_login')
+            ).values('date').annotate(count=Count('id')).order_by('date')
         
-        # Get logins by day (assuming you're using Django's last_login field)
-        logins = User.objects.filter(
-            last_login__gte=thirty_days_ago
-        ).annotate(
-            date=TruncDate('last_login', output_field=DateField())
-        ).values('date').annotate(
-            count=Count('id')
-        ).order_by('date')
-        
-        # Format response
-        response_data = {
+        return Response({
             'signups': list(signups),
             'logins': list(logins)
-        }
-        
-        return Response(response_data)
+        })
 
 
 class RegisterView(generics.CreateAPIView):

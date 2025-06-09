@@ -609,19 +609,28 @@ class AddUserToOrganizationView(APIView):
 class AdminStoryManagementView(APIView):
     permission_classes = [IsAuthenticated]
     
-    def get(self, request):
-        # Check if the requesting user is an admin
-        if not hasattr(request.user, 'profile') or request.user.profile.role != 'admin':
-            return Response({'error': 'Only admins can access this endpoint'}, 
-                           status=status.HTTP_403_FORBIDDEN)
-        
-        # Get all stories
-        stories = Story.objects.all()
-        
-        # Serialize the stories
-        serializer = StorySerializer(stories, many=True)
-        
-        return Response(serializer.data)
+    def get(self, request, story_id=None):
+        if story_id is None:
+            # Existing list view logic
+            if not hasattr(request.user, 'profile') or request.user.profile.role != 'admin':
+                return Response({'error': 'Only admins can access this endpoint'}, 
+                               status=status.HTTP_403_FORBIDDEN)
+            
+            stories = Story.objects.all()
+            serializer = StorySerializer(stories, many=True)
+            return Response(serializer.data)
+        else:
+            # New detail view for admins
+            if not hasattr(request.user, 'profile') or request.user.profile.role != 'admin':
+                return Response({'error': 'Only admins can view private stories'}, 
+                               status=status.HTTP_403_FORBIDDEN)
+            
+            try:
+                story = Story.objects.get(id=story_id)
+                serializer = StorySerializer(story)
+                return Response(serializer.data)
+            except Story.DoesNotExist:
+                return Response({'error': 'Story not found'}, status=status.HTTP_404_NOT_FOUND)
     
     def put(self, request, story_id):
         # Check if the requesting user is an admin
@@ -1156,7 +1165,7 @@ class DeleteEpisodeView(generics.UpdateAPIView):
         )
 
 class ApproveEpisodeView(APIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [IsAdmin|IsSubadmin]
     
     def post(self, request, episode_id):
         try:
@@ -1176,7 +1185,7 @@ class ApproveEpisodeView(APIView):
             return Response({'error': 'Episode not found or not in a state that can be approved'}, status=status.HTTP_404_NOT_FOUND)
 
 class RejectEpisodeView(APIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [IsAdmin|IsSubadmin]
     
     def post(self, request, episode_id):
         try:
