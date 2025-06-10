@@ -155,3 +155,12 @@ EMAIL_HOST_USER = '4b91932d2333ce'
 EMAIL_HOST_PASSWORD = 'e9f36bf7c27fb6'
 EMAIL_PORT = 2525
 EMAIL_USE_TLS = True
+import ssl
+from django.core.mail import get_connection
+
+ssl_context = ssl._create_unverified_context()
+
+EMAIL_USE_TLS = True
+EMAIL_SSL_CERTFILE = None
+EMAIL_SSL_KEYFILE = None
+EMAIL_SSL_CONTEXT = ssl_context
