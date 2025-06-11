@@ -834,9 +834,30 @@ class AdminEpisodeReviewView(generics.ListAPIView):
     permission_classes = [IsAdmin|IsSubadmin]  
     # Use a custom permission class that combines both
     def get_queryset(self):
-        # Get all episode reports with status 'pending'
-        return EpisodeReport.objects.filter(status='pending')
-    
+        user = self.request.user
+
+    # Base queryset: all pending episode reports
+        queryset = EpisodeReport.objects.filter(status='pending')
+
+    # If user is a subadmin, restrict to reports created by users they manage
+        if user.profile.role == 'subadmin':
+        # Get users in same organizations
+            user_orgs = user.organizations.all()
+            org_users = User.objects.filter(organizations__in=user_orgs)
+
+        # Get users directly assigned to this subadmin
+            assigned_users = User.objects.filter(profile__assigned_to=user)
+
+        # Combine all managed users
+            managed_users = User.objects.filter(
+            Q(id__in=org_users) | Q(id__in=assigned_users)
+            ).distinct()
+
+        # Filter reports where the episode's creator is a managed user
+            queryset = queryset.filter(episode__creator__in=managed_users)
+
+        return queryset
+
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
