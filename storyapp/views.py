@@ -78,12 +78,14 @@ class StoryViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.is_authenticated:
+            #is_admin = hasattr(user, 'profile') and user.profile.role == 'admin'
             # If authenticated, show public stories, user's own stories, and specific visibility statuses
             return Story.objects.filter(
                 Q(visibility='public') | 
                 Q(creator=user) | 
                 Q(visibility='quarantined') | 
-                Q(visibility='reported')
+                Q(visibility='reported')|
+                (Q(visibility='private'))
             )
         # For non-authenticated users, show public, quarantined, and reported stories
         return Story.objects.filter(

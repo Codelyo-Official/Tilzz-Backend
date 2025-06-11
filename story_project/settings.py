@@ -150,11 +150,6 @@ CORS_ALLOWED_ORIGINS = [
     'https://tilzz-admin.vercel.app',
 ]
 # Looking to send emails in production? Check out our Email API/SMTP product!
-EMAIL_HOST = 'sandbox.smtp.mailtrap.io'
-EMAIL_HOST_USER = '4b91932d2333ce'
-EMAIL_HOST_PASSWORD = 'e9f36bf7c27fb6'
-EMAIL_PORT = 2525
-EMAIL_USE_TLS = True
 import ssl
 from django.core.mail import get_connection
 
@@ -164,3 +159,10 @@ EMAIL_USE_TLS = True
 EMAIL_SSL_CERTFILE = None
 EMAIL_SSL_KEYFILE = None
 EMAIL_SSL_CONTEXT = ssl_context
+
+
+EMAIL_HOST = 'sandbox.smtp.mailtrap.io'
+EMAIL_HOST_USER = '4b91932d2333ce'
+EMAIL_HOST_PASSWORD = 'e9f36bf7c27fb6'
+EMAIL_PORT = 2525
+EMAIL_USE_TLS = True
