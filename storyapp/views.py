@@ -831,59 +831,65 @@ class SubmitEpisodeForApprovalView(APIView):
 
 class AdminEpisodeReviewView(generics.ListAPIView):
     serializer_class = EpisodeReportSerializer
-    permission_classes = [IsAdmin|IsSubadmin]  
-    # Use a custom permission class that combines both
+    permission_classes = [IsAdmin | IsSubadmin]
+
     def get_queryset(self):
         user = self.request.user
-
-    # Base queryset: all pending episode reports
         queryset = EpisodeReport.objects.filter(status='pending')
 
-    # If user is a subadmin, restrict to reports created by users they manage
-        if user.profile.role == 'subadmin':
-        # Get users in same organizations
+        if hasattr(user, 'profile') and user.profile.role == 'subadmin':
             user_orgs = user.organizations.all()
             org_users = User.objects.filter(organizations__in=user_orgs)
-
-        # Get users directly assigned to this subadmin
             assigned_users = User.objects.filter(profile__assigned_to=user)
 
-        # Combine all managed users
             managed_users = User.objects.filter(
-            Q(id__in=org_users) | Q(id__in=assigned_users)
+                Q(id__in=org_users) | Q(id__in=assigned_users)
             ).distinct()
 
-        # Filter reports where the episode's creator is a managed user
             queryset = queryset.filter(episode__creator__in=managed_users)
 
         return queryset
 
     def list(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
+        user = request.user
+
+        if hasattr(user, 'profile') and user.profile.role == 'subadmin':
+            user_orgs = user.organizations.all()
+            managed_users = User.objects.filter(
+                Q(organizations__in=user_orgs) |
+                Q(profile__assigned_to=user)
+            ).distinct()
+
+            queryset = EpisodeReport.objects.filter(
+                status='pending',
+                episode__creator__in=managed_users
+            ).distinct()
+
+            deleted_episodes = Episode.objects.filter(
+                status=Episode.DELETED,
+                creator__in=managed_users
+            ).distinct()
+        else:
+            queryset = self.get_queryset()
+            deleted_episodes = Episode.objects.filter(status=Episode.DELETED)
+
         serializer = self.get_serializer(queryset, many=True)
-        
-        # Group episodes by story
+
         stories_dict = {}
-        processed_episodes = set()  # Track processed episode IDs
-        
+        processed_episodes = set()
+
         for report_data in serializer.data:
             episode_id = report_data.get('episode')
-            
-            # Skip if we've already processed this episode
             if episode_id in processed_episodes:
                 continue
-                
-            processed_episodes.add(episode_id)  # Mark as processed
-            
+            processed_episodes.add(episode_id)
+
             if episode_id:
                 try:
-                    # Get the episode object
                     episode = Episode.objects.get(id=episode_id)
-                    # Get the version and story
                     version = episode.version
                     story = version.story
-                    
-                    # Create episode data with all details
+
                     episode_data = {
                         'id': episode.id,
                         'title': episode.title,
@@ -908,8 +914,7 @@ class AdminEpisodeReviewView(generics.ListAPIView):
                         'status': episode.status,
                         'reports_count': EpisodeReport.objects.filter(episode=episode).count()
                     }
-                    
-                    # Initialize story if not exists
+
                     if story.id not in stories_dict:
                         stories_dict[story.id] = {
                             'id': story.id,
@@ -924,8 +929,7 @@ class AdminEpisodeReviewView(generics.ListAPIView):
                             } if story.creator else None,
                             'versions': {}
                         }
-                    
-                    # Initialize version if not exists
+
                     if version.id not in stories_dict[story.id]['versions']:
                         stories_dict[story.id]['versions'][version.id] = {
                             'id': version.id,
@@ -938,29 +942,21 @@ class AdminEpisodeReviewView(generics.ListAPIView):
                             'previous_id': None,
                             'episodes': []
                         }
-                    
-                    # Add episode to version
+
                     stories_dict[story.id]['versions'][version.id]['episodes'].append(episode_data)
-                    
+
                 except (Episode.DoesNotExist, Story.DoesNotExist):
                     continue
-        
-        # Now add episodes with status 'deleted'
-        deleted_episodes = Episode.objects.filter(status=Episode.DELETED)
-        
+
         for episode in deleted_episodes:
-            # Skip if we've already processed this episode
             if episode.id in processed_episodes:
                 continue
-                
-            processed_episodes.add(episode.id)  # Mark as processed
-            
+            processed_episodes.add(episode.id)
+
             try:
-                # Get the version and story
                 version = episode.version
                 story = version.story
-                
-                # Create episode data with all details
+
                 episode_data = {
                     'id': episode.id,
                     'title': episode.title,
@@ -979,14 +975,13 @@ class AdminEpisodeReviewView(generics.ListAPIView):
                     'creator': episode.creator.id if episode.creator else None,
                     'creator_username': episode.creator.username if episode.creator else None,
                     'creator_admin': None,
-                    'is_reported': False,  # Not reported, just deleted
+                    'is_reported': False,
                     'story_title': story.title,
                     'story_id': story.id,
                     'status': episode.status,
-                    'reports_count': 0  # No reports for deleted episodes
+                    'reports_count': 0
                 }
-                
-                # Initialize story if not exists
+
                 if story.id not in stories_dict:
                     stories_dict[story.id] = {
                         'id': story.id,
@@ -1001,8 +996,7 @@ class AdminEpisodeReviewView(generics.ListAPIView):
                         } if story.creator else None,
                         'versions': {}
                     }
-                
-                # Initialize version if not exists
+
                 if version.id not in stories_dict[story.id]['versions']:
                     stories_dict[story.id]['versions'][version.id] = {
                         'id': version.id,
@@ -1015,17 +1009,14 @@ class AdminEpisodeReviewView(generics.ListAPIView):
                         'previous_id': None,
                         'episodes': []
                     }
-                
-                # Add episode to version
+
                 stories_dict[story.id]['versions'][version.id]['episodes'].append(episode_data)
-                
-            except (Story.DoesNotExist):
+
+            except Story.DoesNotExist:
                 continue
-        
-        # Convert the nested dictionary to the desired format
+
         result = []
         for story_id, story_data in stories_dict.items():
-            # Convert versions dict to list
             versions_list = []
             for version_id, version_data in story_data['versions'].items():
                 versions_list.append({
@@ -1039,14 +1030,10 @@ class AdminEpisodeReviewView(generics.ListAPIView):
                     'previous_id': version_data['previous_id'],
                     'episodes': version_data['episodes']
                 })
-            
-            # Add versions list to story
             story_data['versions'] = versions_list
-            # Remove the versions dictionary
             result.append(story_data)
-        
-        return Response(result)
 
+        return Response(result)
 class AdminPendingEpisodesView(generics.ListAPIView):
     serializer_class = EpisodeSerializer
     permission_classes = [IsAdmin|IsSubadmin]  
