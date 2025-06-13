@@ -86,6 +86,7 @@ class Episode(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='episodes',null=True)
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default=PUBLIC)
+    liked_by = models.ManyToManyField(User, related_name='liked_episodes', blank=True)
     
     def __str__(self):
         return self.title
@@ -143,6 +144,6 @@ class EpisodeReport(models.Model):
         ).count()
         
         # If 3 or more pending reports and episode is not already quarantined, quarantine it
-        if report_count >= 3 and self.episode.status != Episode.QUARANTINED:
+        if report_count >= 1 and self.episode.status != Episode.QUARANTINED:
             self.episode.status = Episode.QUARANTINED
             self.episode.save()

@@ -6,11 +6,13 @@ from .views import (
     AssignUserToSubadminView, RemoveUserAssignmentView, ListAssignedUsersView,
     CreateOrganizationView, ListOrganizationsView, OrganizationDetailView,
     RemoveMemberFromOrganizationView,
-    DeleteUserView, SubadminDeleteUserView, DeleteOrganizationView,AddMultipleMembersToOrganizationView
+    DeleteUserView, SubadminDeleteUserView, DeleteOrganizationView,AddMultipleMembersToOrganizationView,
+    UserActivityStatsView
 )
 
 from storyapp.views import AdminEpisodeReviewView, ApproveEpisodeView, RejectEpisodeView
 from rest_framework.authtoken.views import obtain_auth_token
+from .views import password_reset_request, verify_reset_code
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
@@ -40,7 +42,7 @@ urlpatterns = [
     # Add this URL pattern to your urlpatterns list
     path('organizations/<int:organization_id>/add-member/', AddMultipleMembersToOrganizationView.as_view(), name='add_multiple_members_to_organization'),
     path('organizations/<int:organization_id>/remove-member/<int:user_id>/', RemoveMemberFromOrganizationView.as_view(), name='remove_member_from_organization'),
-
+    path('stats/user-activity/', UserActivityStatsView.as_view(), name='user_activity_stats'),
     path('admin/episodes/pending-review/', AdminEpisodeReviewView.as_view(), name='admin-episode-review'),
     path('admin/episodes/<int:episode_id>/approve/', ApproveEpisodeView.as_view(), name='approve-episode'),
     path('admin/episodes/<int:episode_id>/reject/', RejectEpisodeView.as_view(), name='reject-episode'),
@@ -51,4 +53,6 @@ urlpatterns = [
     
     # Organization deletion endpoint
     path('organizations/<int:organization_id>/delete/', DeleteOrganizationView.as_view(), name='delete_organization'),
+    path('password-reset/', password_reset_request, name='password_reset'),
+    path('verify-reset-code/', verify_reset_code, name='verify_reset_code'),
 ]

@@ -53,6 +53,7 @@ urlpatterns = [
     path('episodes/<int:pk>/branch/', EpisodeViewSet.as_view({'post': 'branch'}), name='episode-branch'),
     # Add these to your existing urlpatterns
     path('admin/stories/', AdminStoryManagementView.as_view(), name='admin_stories_list'),
+    path('admin/stories/<int:story_id>/', AdminStoryManagementView.as_view(), name='admin_story_detail'),
     path('admin/stories/<int:story_id>/visibility/', AdminStoryManagementView.as_view(), name='admin_change_story_visibility'),
     path('episodes/<int:episode_id>/reports/', EpisodeReportsView.as_view(), name='episode-reports'),  # Fix: remove 'views.' prefix
     # Add these to urlpatterns

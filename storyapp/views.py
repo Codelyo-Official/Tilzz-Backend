@@ -72,18 +72,20 @@ class PublicStoryDetailView(generics.RetrieveAPIView):
 
 class StoryViewSet(viewsets.ModelViewSet):
     serializer_class = StorySerializer
-    permission_classes = [IsCreatorOrReadOnly|IsAdminUser|IsSubadmin]
+    permission_classes = [IsCreatorOrReadOnly|IsAdmin|IsSubadmin]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     
     def get_queryset(self):
         user = self.request.user
         if user.is_authenticated:
+            #is_admin = hasattr(user, 'profile') and user.profile.role == 'admin'
             # If authenticated, show public stories, user's own stories, and specific visibility statuses
             return Story.objects.filter(
                 Q(visibility='public') | 
                 Q(creator=user) | 
                 Q(visibility='quarantined') | 
-                Q(visibility='reported')
+                Q(visibility='reported')|
+                (Q(visibility='private'))
             )
         # For non-authenticated users, show public, quarantined, and reported stories
         return Story.objects.filter(
@@ -199,6 +201,22 @@ class EpisodeViewSet(viewsets.ModelViewSet):
     serializer_class = EpisodeSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
     #permission_classes = [IsCreatorOrReadOnly|IsAdminUser|IsSubadmin]
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def like(self, request, pk=None):
+        episode = self.get_object()
+        if request.user in episode.liked_by.all():
+            return Response({'detail': 'Already liked.'}, status=status.HTTP_400_BAD_REQUEST)
+        episode.liked_by.add(request.user)
+        return Response({'detail': 'Liked successfully.'}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def unlike(self, request, pk=None):
+        episode = self.get_object()
+        if request.user not in episode.liked_by.all():
+            return Response({'detail': 'Not liked yet.'}, status=status.HTTP_400_BAD_REQUEST)
+        episode.liked_by.remove(request.user)
+        return Response({'detail': 'Unliked successfully.'}, status=status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
         # Get story_id from URL if present
@@ -384,7 +402,7 @@ class EpisodeReportViewSet(viewsets.ModelViewSet):
         report_count = EpisodeReport.objects.filter(episode=episode).count()
         serializer.save(reported_by=self.request.user)
 
-        if report_count >= 3:
+        if report_count >= 1:
             episode.status = Episode.QUARANTINED
             episode.save()
 
@@ -416,7 +434,7 @@ class StoryReportViewSet(viewsets.ModelViewSet):
         ).count()
         
         # If total reports >= 3, mark the story as reported
-        if story_reports_count + episode_reports_count >= 3:
+        if story_reports_count + episode_reports_count >= 1:
             story.visibility = Story.REPORTED
             story.save()
 
@@ -430,7 +448,7 @@ class AdminUserListView(generics.ListAPIView):
     permission_classes = [IsAdmin]  # Changed from IsAdminUser
 
 class MakeSubadminView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdmin]
     
     def post(self, request, user_id):
         try:
@@ -452,18 +470,18 @@ class MakeSubadminView(APIView):
 class OrganizationViewSet(viewsets.ModelViewSet):
     queryset = Organization.objects.all()
     serializer_class = OrganizationSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdmin]
 
 class QuarantinedStoriesView(generics.ListAPIView):
     serializer_class = StorySerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdmin]
     
     def get_queryset(self):
         return Story.objects.filter(visibility='quarantined')
 
 class EpisodeReportsView(generics.ListAPIView):
     serializer_class = EpisodeReportSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdmin]
     
     def get_queryset(self):
         episode_id = self.kwargs.get('episode_id')
@@ -471,14 +489,14 @@ class EpisodeReportsView(generics.ListAPIView):
 
 class StoryReportsView(generics.ListAPIView):
     serializer_class = StoryReportSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdmin]
     
     def get_queryset(self):
         story_id = self.kwargs.get('story_id')
         return StoryReport.objects.filter(story_id=story_id)
 
 class ApproveStoryView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdmin]
     
     def post(self, request, story_id):
         try:
@@ -494,7 +512,7 @@ class ApproveStoryView(APIView):
             return Response({'error': 'Quarantined story not found'}, status=status.HTTP_404_NOT_FOUND)
 
 class RejectStoryView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdmin]
     
     def post(self, request, story_id):
         try:
@@ -593,19 +611,28 @@ class AddUserToOrganizationView(APIView):
 class AdminStoryManagementView(APIView):
     permission_classes = [IsAuthenticated]
     
-    def get(self, request):
-        # Check if the requesting user is an admin
-        if not hasattr(request.user, 'profile') or request.user.profile.role != 'admin':
-            return Response({'error': 'Only admins can access this endpoint'}, 
-                           status=status.HTTP_403_FORBIDDEN)
-        
-        # Get all stories
-        stories = Story.objects.all()
-        
-        # Serialize the stories
-        serializer = StorySerializer(stories, many=True)
-        
-        return Response(serializer.data)
+    def get(self, request, story_id=None):
+        if story_id is None:
+            # Existing list view logic
+            if not hasattr(request.user, 'profile') or request.user.profile.role != 'admin':
+                return Response({'error': 'Only admins can access this endpoint'}, 
+                               status=status.HTTP_403_FORBIDDEN)
+            
+            stories = Story.objects.all()
+            serializer = StorySerializer(stories, many=True)
+            return Response(serializer.data)
+        else:
+            # New detail view for admins
+            if not hasattr(request.user, 'profile') or request.user.profile.role != 'admin':
+                return Response({'error': 'Only admins can view private stories'}, 
+                               status=status.HTTP_403_FORBIDDEN)
+            
+            try:
+                story = Story.objects.get(id=story_id)
+                serializer = StorySerializer(story)
+                return Response(serializer.data)
+            except Story.DoesNotExist:
+                return Response({'error': 'Story not found'}, status=status.HTTP_404_NOT_FOUND)
     
     def put(self, request, story_id):
         # Check if the requesting user is an admin
@@ -807,112 +834,62 @@ class AdminEpisodeReviewView(generics.ListAPIView):
     permission_classes = [IsAdmin|IsSubadmin]  
     # Use a custom permission class that combines both
     def get_queryset(self):
-        # Get all episode reports with status 'pending'
-        return EpisodeReport.objects.filter(status='pending')
+        user = self.request.user
+
+    # Base queryset: all pending episode reports
+        queryset = EpisodeReport.objects.filter(status='pending')
+
+    # If user is a subadmin, restrict to reports created by users they manage
+        if user.profile.role == 'subadmin':
+        # Get users in same organizations
+            user_orgs = user.organizations.all()
+            org_users = User.objects.filter(organizations__in=user_orgs)
+
+        # Get users directly assigned to this subadmin
+            assigned_users = User.objects.filter(profile__assigned_to=user)
+
+        # Combine all managed users
+            managed_users = User.objects.filter(
+            Q(id__in=org_users) | Q(id__in=assigned_users)
+            ).distinct()
+
+        # Filter reports where the episode's creator is a managed user
+            queryset = queryset.filter(episode__creator__in=managed_users)
+
+        return queryset
+
+def list(self, request, *args, **kwargs):
+    user = request.user
+    queryset = self.get_queryset()
     
-    def list(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
-        serializer = self.get_serializer(queryset, many=True)
+    # Filter episodes if user is a subadmin
+    if user.profile.role == 'subadmin':
+        user_orgs = user.organizations.all()
+        org_users = User.objects.filter(organizations__in=user_orgs)
+        assigned_users = User.objects.filter(profile__assigned_to=user)
+        managed_users = User.objects.filter(Q(id__in=org_users) | Q(id__in=assigned_users)).distinct()
         
-        # Group episodes by story
-        stories_dict = {}
-        processed_episodes = set()  # Track processed episode IDs
-        
-        for report_data in serializer.data:
-            episode_id = report_data.get('episode')
-            
-            # Skip if we've already processed this episode
-            if episode_id in processed_episodes:
-                continue
-                
-            processed_episodes.add(episode_id)  # Mark as processed
-            
-            if episode_id:
-                try:
-                    # Get the episode object
-                    episode = Episode.objects.get(id=episode_id)
-                    # Get the version and story
-                    version = episode.version
-                    story = version.story
-                    
-                    # Create episode data with all details
-                    episode_data = {
-                        'id': episode.id,
-                        'title': episode.title,
-                        'content': episode.content,
-                        'version': version.id,
-                        'parent_episode': episode.parent_episode.id if episode.parent_episode else None,
-                        'created_at': episode.created_at,
-                        'has_next': False,
-                        'has_previous': False,
-                        'next_id': None,
-                        'previous_id': None,
-                        'has_other_version': False,
-                        'other_version_id': None,
-                        'previous_version': None,
-                        'next_version': None,
-                        'creator': episode.creator.id if episode.creator else None,
-                        'creator_username': episode.creator.username if episode.creator else None,
-                        'creator_admin': None,
-                        'is_reported': True,
-                        'story_title': story.title,
-                        'story_id': story.id,
-                        'status': episode.status,
-                        'reports_count': EpisodeReport.objects.filter(episode=episode).count()
-                    }
-                    
-                    # Initialize story if not exists
-                    if story.id not in stories_dict:
-                        stories_dict[story.id] = {
-                            'id': story.id,
-                            'title': story.title,
-                            'description': story.description,
-                            'visibility': story.visibility,
-                            'created_at': story.created_at,
-                            'cover_image': story.cover_image.url if story.cover_image else None,
-                            'creator': {
-                                'id': story.creator.id,
-                                'username': story.creator.username
-                            } if story.creator else None,
-                            'versions': {}
-                        }
-                    
-                    # Initialize version if not exists
-                    if version.id not in stories_dict[story.id]['versions']:
-                        stories_dict[story.id]['versions'][version.id] = {
-                            'id': version.id,
-                            'story': story.id,
-                            'version_number': version.version_number,
-                            'created_at': version.created_at,
-                            'has_next': False,
-                            'has_previous': False,
-                            'next_id': None,
-                            'previous_id': None,
-                            'episodes': []
-                        }
-                    
-                    # Add episode to version
-                    stories_dict[story.id]['versions'][version.id]['episodes'].append(episode_data)
-                    
-                except (Episode.DoesNotExist, Story.DoesNotExist):
-                    continue
-        
-        # Now add episodes with status 'deleted'
-        deleted_episodes = Episode.objects.filter(status=Episode.DELETED)
-        
-        for episode in deleted_episodes:
-            # Skip if we've already processed this episode
-            if episode.id in processed_episodes:
-                continue
-                
-            processed_episodes.add(episode.id)  # Mark as processed
-            
+        # Filter reports only for managed users
+        queryset = queryset.filter(episode__creator__in=managed_users)
+
+    serializer = self.get_serializer(queryset, many=True)
+    
+    # === Group episodes by story ===
+    stories_dict = {}
+    processed_episodes = set()
+
+    for report_data in serializer.data:
+        episode_id = report_data.get('episode')
+        if episode_id in processed_episodes:
+            continue
+        processed_episodes.add(episode_id)
+
+        if episode_id:
             try:
-                # Get the version and story
+                episode = Episode.objects.get(id=episode_id)
                 version = episode.version
                 story = version.story
-                
-                # Create episode data with all details
+
                 episode_data = {
                     'id': episode.id,
                     'title': episode.title,
@@ -931,14 +908,13 @@ class AdminEpisodeReviewView(generics.ListAPIView):
                     'creator': episode.creator.id if episode.creator else None,
                     'creator_username': episode.creator.username if episode.creator else None,
                     'creator_admin': None,
-                    'is_reported': False,  # Not reported, just deleted
+                    'is_reported': True,
                     'story_title': story.title,
                     'story_id': story.id,
                     'status': episode.status,
-                    'reports_count': 0  # No reports for deleted episodes
+                    'reports_count': EpisodeReport.objects.filter(episode=episode).count()
                 }
-                
-                # Initialize story if not exists
+
                 if story.id not in stories_dict:
                     stories_dict[story.id] = {
                         'id': story.id,
@@ -953,8 +929,7 @@ class AdminEpisodeReviewView(generics.ListAPIView):
                         } if story.creator else None,
                         'versions': {}
                     }
-                
-                # Initialize version if not exists
+
                 if version.id not in stories_dict[story.id]['versions']:
                     stories_dict[story.id]['versions'][version.id] = {
                         'id': version.id,
@@ -967,38 +942,94 @@ class AdminEpisodeReviewView(generics.ListAPIView):
                         'previous_id': None,
                         'episodes': []
                     }
-                
-                # Add episode to version
-                stories_dict[story.id]['versions'][version.id]['episodes'].append(episode_data)
-                
-            except (Story.DoesNotExist):
-                continue
-        
-        # Convert the nested dictionary to the desired format
-        result = []
-        for story_id, story_data in stories_dict.items():
-            # Convert versions dict to list
-            versions_list = []
-            for version_id, version_data in story_data['versions'].items():
-                versions_list.append({
-                    'id': version_data['id'],
-                    'story': version_data['story'],
-                    'version_number': version_data['version_number'],
-                    'created_at': version_data['created_at'],
-                    'has_next': version_data['has_next'],
-                    'has_previous': version_data['has_previous'],
-                    'next_id': version_data['next_id'],
-                    'previous_id': version_data['previous_id'],
-                    'episodes': version_data['episodes']
-                })
-            
-            # Add versions list to story
-            story_data['versions'] = versions_list
-            # Remove the versions dictionary
-            result.append(story_data)
-        
-        return Response(result)
 
+                stories_dict[story.id]['versions'][version.id]['episodes'].append(episode_data)
+
+            except (Episode.DoesNotExist, Story.DoesNotExist):
+                continue
+
+    # === Add deleted episodes ===
+    deleted_episodes = Episode.objects.filter(status=Episode.DELETED)
+
+    if user.profile.role == 'subadmin':
+        deleted_episodes = deleted_episodes.filter(creator__in=managed_users)
+
+    for episode in deleted_episodes:
+        if episode.id in processed_episodes:
+            continue
+        processed_episodes.add(episode.id)
+
+        try:
+            version = episode.version
+            story = version.story
+
+            episode_data = {
+                'id': episode.id,
+                'title': episode.title,
+                'content': episode.content,
+                'version': version.id,
+                'parent_episode': episode.parent_episode.id if episode.parent_episode else None,
+                'created_at': episode.created_at,
+                'has_next': False,
+                'has_previous': False,
+                'next_id': None,
+                'previous_id': None,
+                'has_other_version': False,
+                'other_version_id': None,
+                'previous_version': None,
+                'next_version': None,
+                'creator': episode.creator.id if episode.creator else None,
+                'creator_username': episode.creator.username if episode.creator else None,
+                'creator_admin': None,
+                'is_reported': False,
+                'story_title': story.title,
+                'story_id': story.id,
+                'status': episode.status,
+                'reports_count': 0
+            }
+
+            if story.id not in stories_dict:
+                stories_dict[story.id] = {
+                    'id': story.id,
+                    'title': story.title,
+                    'description': story.description,
+                    'visibility': story.visibility,
+                    'created_at': story.created_at,
+                    'cover_image': story.cover_image.url if story.cover_image else None,
+                    'creator': {
+                        'id': story.creator.id,
+                        'username': story.creator.username
+                    } if story.creator else None,
+                    'versions': {}
+                }
+
+            if version.id not in stories_dict[story.id]['versions']:
+                stories_dict[story.id]['versions'][version.id] = {
+                    'id': version.id,
+                    'story': story.id,
+                    'version_number': version.version_number,
+                    'created_at': version.created_at,
+                    'has_next': False,
+                    'has_previous': False,
+                    'next_id': None,
+                    'previous_id': None,
+                    'episodes': []
+                }
+
+            stories_dict[story.id]['versions'][version.id]['episodes'].append(episode_data)
+
+        except Story.DoesNotExist:
+            continue
+
+    # === Convert stories dict to response format ===
+    result = []
+    for story_data in stories_dict.values():
+        versions_list = list(story_data['versions'].values())
+        story_data['versions'] = versions_list
+        result.append(story_data)
+
+    return Response(result)
+    
 class AdminPendingEpisodesView(generics.ListAPIView):
     serializer_class = EpisodeSerializer
     permission_classes = [IsAdmin|IsSubadmin]  
@@ -1140,7 +1171,7 @@ class DeleteEpisodeView(generics.UpdateAPIView):
         )
 
 class ApproveEpisodeView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdmin|IsSubadmin]
     
     def post(self, request, episode_id):
         try:
@@ -1160,7 +1191,7 @@ class ApproveEpisodeView(APIView):
             return Response({'error': 'Episode not found or not in a state that can be approved'}, status=status.HTTP_404_NOT_FOUND)
 
 class RejectEpisodeView(APIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [IsAdmin|IsSubadmin]
     
     def post(self, request, episode_id):
         try:
@@ -1301,7 +1332,7 @@ class UserEpisodesWithReportedStoriesView(generics.ListAPIView):
 
 class PendingEpisodesView(generics.ListAPIView):
     serializer_class = EpisodeSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdmin]
     
     def get_queryset(self):
         return Episode.objects.filter(status=Episode.PENDING).select_related('version__story', 'creator')
@@ -1310,7 +1341,7 @@ class AdminDeleteStoryView(generics.DestroyAPIView):
     """
     Allows admins to permanently delete a story
     """
-    permission_classes = [IsAdminUser|IsSubadmin]
+    permission_classes = [IsAdmin|IsSubadmin]
     queryset = Story.objects.all()
     lookup_url_kwarg = 'story_id'
     

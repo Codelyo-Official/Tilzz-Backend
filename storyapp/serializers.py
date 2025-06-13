@@ -24,14 +24,24 @@ class EpisodeSerializer(serializers.ModelSerializer):
     story_id = serializers.SerializerMethodField()
     reports_count = serializers.SerializerMethodField()
     reporting_users = serializers.SerializerMethodField()
+    likes_count = serializers.SerializerMethodField()
+    is_liked = serializers.SerializerMethodField()
     class Meta:
         model = Episode
         fields = ['id', 'title', 'content', 'version', 'parent_episode', 'created_at', 
                  'has_next', 'has_previous', 'next_id', 'previous_id', 
                  'has_other_version', 'other_version_id', 'previous_version', 'next_version',
                  'creator', 'creator_username', 'creator_admin', 'is_reported', 'story_title', 
-                 'story_id', 'status', 'reports_count','reporting_users']
+                 'story_id', 'status', 'reports_count','reporting_users','likes_count', 'is_liked']
         read_only_fields = ['version', 'parent_episode', 'creator']
+    def get_likes_count(self, obj):
+        return obj.liked_by.count()
+        
+    def get_is_liked(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.liked_by.filter(id=request.user.id).exists()
+        return False
     def get_reporting_users(self, obj):
         return list(obj.reports.values_list('reported_by__username', flat=True))
     def get_story_title(self, obj):

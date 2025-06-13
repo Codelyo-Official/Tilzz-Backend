@@ -22,7 +22,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = "django-insecure-i^ktn26lrgt#o9)r#4me2ep$04!p0hs)#=6_i(fiwhh)#db+6)"
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = ["127.0.0.1", "localhost", "ahmedkh.pythonanywhere.com"]
 
@@ -149,3 +149,20 @@ CORS_ALLOWED_ORIGINS = [
     'https://tilzz.vercel.app',
     'https://tilzz-admin.vercel.app',
 ]
+# Looking to send emails in production? Check out our Email API/SMTP product!
+import ssl
+from django.core.mail import get_connection
+
+ssl_context = ssl._create_unverified_context()
+
+EMAIL_USE_TLS = True
+EMAIL_SSL_CERTFILE = None
+EMAIL_SSL_KEYFILE = None
+EMAIL_SSL_CONTEXT = ssl_context
+
+
+EMAIL_HOST = 'sandbox.smtp.mailtrap.io'
+EMAIL_HOST_USER = '4b91932d2333ce'
+EMAIL_HOST_PASSWORD = 'e9f36bf7c27fb6'
+EMAIL_PORT = 2525
+EMAIL_USE_TLS = True
