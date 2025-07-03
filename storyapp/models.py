@@ -8,7 +8,11 @@ class Organization(models.Model):
     
     def __str__(self):
         return self.name
+class Category(models.Model):
+    name = models.CharField(max_length=100, unique=True)
 
+    def __str__(self):
+        return self.name
 class Story(models.Model):
     PUBLIC = 'public'
     PRIVATE = 'private'
@@ -31,7 +35,8 @@ class Story(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     cover_image = models.ImageField(upload_to='story_covers/', null=True, blank=True)
-    
+    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, related_name='stories')
+
     organization = models.ForeignKey(Organization, on_delete=models.SET_NULL, null=True, blank=True, related_name='stories')
 
     def __str__(self):
@@ -147,3 +152,4 @@ class EpisodeReport(models.Model):
         if report_count >= 1 and self.episode.status != Episode.QUARANTINED:
             self.episode.status = Episode.QUARANTINED
             self.episode.save()
+

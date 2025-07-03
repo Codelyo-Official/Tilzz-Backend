@@ -9,7 +9,7 @@ from .views import (
     SubadminStoryListView, SubadminStoryVisibilityView, EpisodeReportsView, EpisodeReportViewSet,
     SubmitEpisodeForApprovalView,
     QuarantinedEpisodesListView,StoriesWithReportedEpisodesView,UserEpisodesWithReportedStoriesView,PendingEpisodesView,
-    DeleteEpisodeView,AdminEpisodeReviewView,ApproveEpisodeView,RejectEpisodeView,AdminDeleteStoryView,AdminPendingEpisodesView
+    DeleteEpisodeView,AdminEpisodeReviewView,ApproveEpisodeView,RejectEpisodeView,AdminDeleteStoryView,AdminPendingEpisodesView,CategoryViewSet
 )
 
 router = DefaultRouter()
@@ -19,6 +19,7 @@ router.register(r'versions', VersionViewSet)
 router.register(r'episodes', EpisodeViewSet, basename='episode')
 router.register(r'episode-reports', EpisodeReportViewSet)  # Fix: remove 'views.' prefix
 router.register('organizations', OrganizationViewSet)
+router.register(r'categories', CategoryViewSet, basename='category')
 
 from django.urls import path
 from . import views
@@ -69,4 +70,5 @@ urlpatterns = [
     path('admin/episodes/<int:episode_id>/reject/', RejectEpisodeView.as_view(), name='reject-episode'),
     # Admin story deletion endpoint
     path('admin/stories/<int:story_id>/delete/', AdminDeleteStoryView.as_view(), name='admin-delete-story'),
+    
 ]

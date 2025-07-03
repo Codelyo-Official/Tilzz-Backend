@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import Story, Version, Episode, StoryReport, Organization,EpisodeReport
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import Story, Episode, Version, StoryReport, EpisodeReport
+from .models import Story, Episode, Version, StoryReport, EpisodeReport,Category
 class OrganizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
@@ -196,12 +196,30 @@ class StorySerializer(serializers.ModelSerializer):
     creator_username = serializers.ReadOnlyField(source='creator.username')
     cover_image = serializers.ImageField(required=False)
     creator_admin = serializers.SerializerMethodField()
+    category = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = Story
         fields = '__all__'
         read_only_fields = ['creator']
-    
+    def create(self, validated_data):
+        category_name = validated_data.pop('category', '').strip()
+        if category_name:
+            category_obj, _ = Category.objects.get_or_create(
+                name__iexact=category_name,
+                defaults={'name': category_name}
+            )
+            validated_data['category'] = category_obj
+        return super().create(validated_data)
+    def update(self, instance, validated_data):
+        category_name = validated_data.pop('category', '').strip()
+        if category_name:
+            category_obj, _ = Category.objects.get_or_create(
+                name__iexact=category_name,
+                defaults={'name': category_name}
+            )
+            validated_data['category'] = category_obj
+        return super().update(instance, validated_data)
     def get_creator_admin(self, obj):
         # Get the creator's admin (if assigned to one)
         if hasattr(obj.creator, 'profile') and obj.creator.profile.assigned_to:
@@ -294,5 +312,8 @@ class EpisodeReportSerializer(serializers.ModelSerializer):
     def get_reporting_users(self, obj):
         return list(obj.reports.values_list('reported_by__username', flat=True))
     
-
+class CategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = ['id', 'name']
 

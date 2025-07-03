@@ -6,11 +6,12 @@ from rest_framework.views import APIView
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User
+from rest_framework.permissions import AllowAny
 
-from .models import Story, Version, Episode, StoryReport, Organization
+from .models import Story, Version, Episode, StoryReport, Organization , Category
 from .serializers import (
     StorySerializer, VersionSerializer, EpisodeSerializer, 
-    StoryReportSerializer, OrganizationSerializer, EpisodeReportSerializer, EpisodeReport
+    StoryReportSerializer, OrganizationSerializer, EpisodeReportSerializer, EpisodeReport,CategorySerializer
 )
 from accounts.serializers import UserSerializer
 # Remove the circular import - don't import from .views
@@ -70,6 +71,11 @@ class PublicStoryDetailView(generics.RetrieveAPIView):
             Q(visibility='Reported'
         ))
 
+class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Category.objects.all().order_by('name')
+    serializer_class = CategorySerializer
+    permission_classes = [AllowAny]
+
 class StoryViewSet(viewsets.ModelViewSet):
     serializer_class = StorySerializer
     permission_classes = [IsCreatorOrReadOnly|IsAdmin|IsSubadmin]
@@ -77,6 +83,7 @@ class StoryViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
+        queryset = Story.objects.all()
         if user.is_authenticated:
             #is_admin = hasattr(user, 'profile') and user.profile.role == 'admin'
             # If authenticated, show public stories, user's own stories, and specific visibility statuses
@@ -87,12 +94,18 @@ class StoryViewSet(viewsets.ModelViewSet):
                 Q(visibility='reported')|
                 (Q(visibility='private'))
             )
+        else:
+            queryset = queryset.filter(
+            Q(visibility='public') |
+            Q(visibility='quarantined') |
+            Q(visibility='reported')
+        )
         # For non-authenticated users, show public, quarantined, and reported stories
-        return Story.objects.filter(
-            Q(visibility='public') | 
-            Q(visibility='quarantined') | 
-            Q(visibility='reported'
-        ))
+        category_param = self.request.query_params.get('category')
+        if category_param:
+            queryset = queryset.filter(category__name__iexact=category_param)
+
+        return queryset
     
     def perform_create(self, serializer):
         serializer.save(creator=self.request.user)
