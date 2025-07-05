@@ -95,15 +95,25 @@ class StoryInviteViewSet(viewsets.ModelViewSet):
     def reject(self, request, pk=None):
         invite = self.get_object()
 
+    # Only allow the invited person to reject
         if invite.invited_email.lower() != request.user.email.lower():
             return Response({'detail': 'You are not authorized to reject this invite.'}, status=403)
 
+    # Don't allow rejecting if already accepted
+        if invite.accepted:
+            return Response({'detail': 'Invite already accepted, cannot reject.'}, status=400)
+
+    # Prevent duplicate rejection
         if invite.rejected:
             return Response({'detail': 'Invite already rejected.'}, status=400)
 
+    # Mark as rejected and assign invited_user for tracking
         invite.rejected = True
+        invite.invited_user = request.user
         invite.save()
+
         return Response({'detail': 'Invite rejected successfully.'})
+
     
     def get_queryset(self):
         user = self.request.user
