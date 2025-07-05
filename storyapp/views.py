@@ -116,7 +116,7 @@ class StoryInviteViewSet(viewsets.ModelViewSet):
             invited_by=self.request.user,
             invited_user=invited_user
         )
-        invite.send_invitation_email()
+        #invite.send_invitation_email()
 
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
