@@ -135,30 +135,41 @@ class StoryViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         queryset = Story.objects.all()
+
+        # Check roles (assuming 'profile.role' holds the user role)
+        role = getattr(user.profile, 'role', None)
+
         if user.is_authenticated:
-            invited_story_ids = StoryInvite.objects.filter(invited_email=user.email).values_list('story_id', flat=True)
-            #is_admin = hasattr(user, 'profile') and user.profile.role == 'admin'
-            # If authenticated, show public stories, user's own stories, and specific visibility statuses
-            queryset = queryset.filter(
+            invited_story_ids = StoryInvite.objects.filter(
+            invited_email=user.email
+            ).values_list('story_id', flat=True)
+
+            if role in ['admin', 'subadmin']:
+                # Admins see everything
+                return queryset
+
+        # Normal users see public, their own, invited, etc.
+            return queryset.filter(
             Q(visibility='public') |
             Q(creator=user) |
+            Q(id__in=invited_story_ids) |
             Q(visibility='quarantined') |
             Q(visibility='reported') |
-            Q(visibility='private', id__in=invited_story_ids)
-        )
+            Q(visibility='private', creator=user)
+            )
         else:
-            queryset = queryset.filter(
+            return queryset.filter(
             Q(visibility='public') |
             Q(visibility='quarantined') |
             Q(visibility='reported')
         )
-        # For non-authenticated users, show public, quarantined, and reported stories
+
         category_param = self.request.query_params.get('category')
         if category_param:
             queryset = queryset.filter(category__name__iexact=category_param)
-
         return queryset
-    
+
+
     def perform_create(self, serializer):
         serializer.save(creator=self.request.user)
 
