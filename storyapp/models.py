@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.core.mail import send_mail
 
 class Organization(models.Model):
     name = models.CharField(max_length=255)
@@ -152,4 +153,27 @@ class EpisodeReport(models.Model):
         if report_count >= 1 and self.episode.status != Episode.QUARANTINED:
             self.episode.status = Episode.QUARANTINED
             self.episode.save()
+
+
+from django.core.mail import send_mail
+
+class StoryInvite(models.Model):
+    story = models.ForeignKey(Story, on_delete=models.CASCADE, related_name='invites')
+    invited_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_invites')
+    invited_email = models.EmailField()
+    invited_user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='received_invites')
+    created_at = models.DateTimeField(auto_now_add=True)
+    accepted = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.invited_email} invited to {self.story.title}"
+
+    def send_invitation_email(self):
+        subject = f"You've been invited to view a story on [YourPlatformName]"
+        message = f"""
+        {self.invited_by.username} has invited you to view their private story: "{self.story.title}".
+
+        If you already have an account, just log in and view your invitations.
+        """
+        send_mail(subject, message, 'no-reply@yourplatform.com', [self.invited_email])
 

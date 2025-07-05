@@ -9,7 +9,7 @@ from .views import (
     SubadminStoryListView, SubadminStoryVisibilityView, EpisodeReportsView, EpisodeReportViewSet,
     SubmitEpisodeForApprovalView,
     QuarantinedEpisodesListView,StoriesWithReportedEpisodesView,UserEpisodesWithReportedStoriesView,PendingEpisodesView,
-    DeleteEpisodeView,AdminEpisodeReviewView,ApproveEpisodeView,RejectEpisodeView,AdminDeleteStoryView,AdminPendingEpisodesView,CategoryViewSet
+    DeleteEpisodeView,AdminEpisodeReviewView,ApproveEpisodeView,RejectEpisodeView,AdminDeleteStoryView,AdminPendingEpisodesView,CategoryViewSet,StoryInviteViewSet
 )
 
 router = DefaultRouter()
@@ -20,6 +20,7 @@ router.register(r'episodes', EpisodeViewSet, basename='episode')
 router.register(r'episode-reports', EpisodeReportViewSet)  # Fix: remove 'views.' prefix
 router.register('organizations', OrganizationViewSet)
 router.register(r'categories', CategoryViewSet, basename='category')
+router.register(r'story-invites', StoryInviteViewSet, basename='story-invite')
 
 from django.urls import path
 from . import views

@@ -8,10 +8,10 @@ from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User
 from rest_framework.permissions import AllowAny
 
-from .models import Story, Version, Episode, StoryReport, Organization , Category
+from .models import Story, Version, Episode, StoryReport, Organization , Category,StoryInvite
 from .serializers import (
     StorySerializer, VersionSerializer, EpisodeSerializer, 
-    StoryReportSerializer, OrganizationSerializer, EpisodeReportSerializer, EpisodeReport,CategorySerializer
+    StoryReportSerializer, OrganizationSerializer, EpisodeReportSerializer, EpisodeReport,CategorySerializer,StoryInviteSerializer
 )
 from accounts.serializers import UserSerializer
 # Remove the circular import - don't import from .views
@@ -71,6 +71,54 @@ class PublicStoryDetailView(generics.RetrieveAPIView):
             Q(visibility='Reported'
         ))
 
+
+class StoryInviteViewSet(viewsets.ModelViewSet):
+    serializer_class = StoryInviteSerializer
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def accept(self, request, pk=None):
+        invite = self.get_object()
+
+        if invite.invited_email.lower() != request.user.email.lower():
+            return Response({'detail': 'You are not authorized to accept this invite.'}, status=403)
+
+        if invite.accepted:
+            return Response({'detail': 'Invite already accepted.'}, status=400)
+
+        invite.accepted = True
+        invite.invited_user = request.user
+        invite.save()
+        return Response({'detail': 'Invite accepted successfully.'})
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def reject(self, request, pk=None):
+        invite = self.get_object()
+
+        if invite.invited_email.lower() != request.user.email.lower():
+            return Response({'detail': 'You are not authorized to reject this invite.'}, status=403)
+
+        if invite.rejected:
+            return Response({'detail': 'Invite already rejected.'}, status=400)
+
+        invite.rejected = True
+        invite.save()
+        return Response({'detail': 'Invite rejected successfully.'})
+    
+    def get_queryset(self):
+        # Only show invites for the current user (as invitee)
+        return StoryInvite.objects.filter(invited_email=self.request.user.email)
+
+    def perform_create(self, serializer):
+        invited_email = serializer.validated_data['invited_email']
+        invited_user = User.objects.filter(email__iexact=invited_email).first()
+        invite = serializer.save(
+            invited_by=self.request.user,
+            invited_user=invited_user
+        )
+        invite.send_invitation_email()
+
+
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Category.objects.all().order_by('name')
     serializer_class = CategorySerializer
@@ -85,15 +133,16 @@ class StoryViewSet(viewsets.ModelViewSet):
         user = self.request.user
         queryset = Story.objects.all()
         if user.is_authenticated:
+            invited_story_ids = StoryInvite.objects.filter(invited_email=user.email).values_list('story_id', flat=True)
             #is_admin = hasattr(user, 'profile') and user.profile.role == 'admin'
             # If authenticated, show public stories, user's own stories, and specific visibility statuses
-            return Story.objects.filter(
-                Q(visibility='public') | 
-                Q(creator=user) | 
-                Q(visibility='quarantined') | 
-                Q(visibility='reported')|
-                (Q(visibility='private'))
-            )
+            queryset = queryset.filter(
+            Q(visibility='public') |
+            Q(creator=user) |
+            Q(visibility='quarantined') |
+            Q(visibility='reported') |
+            Q(visibility='private', id__in=invited_story_ids)
+        )
         else:
             queryset = queryset.filter(
             Q(visibility='public') |

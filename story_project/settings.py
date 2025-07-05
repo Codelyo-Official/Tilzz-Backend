@@ -161,8 +161,11 @@ EMAIL_SSL_KEYFILE = None
 EMAIL_SSL_CONTEXT = ssl_context
 
 
-EMAIL_HOST = 'sandbox.smtp.mailtrap.io'
-EMAIL_HOST_USER = '4b91932d2333ce'
-EMAIL_HOST_PASSWORD = 'e9f36bf7c27fb6'
-EMAIL_PORT = 2525
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
 EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'ahmedkhawarbs@gmail.com'           # your Gmail address
+EMAIL_HOST_PASSWORD = ''          # NOT your Gmail password
+DEFAULT_FROM_EMAIL = 'Your Platform <ahmedkhawarbs@gmail.com>'

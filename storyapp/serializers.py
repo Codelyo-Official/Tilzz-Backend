@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import Story, Version, Episode, StoryReport, Organization,EpisodeReport
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import Story, Episode, Version, StoryReport, EpisodeReport,Category
+from .models import Story, Episode, Version, StoryReport, EpisodeReport,Category,StoryInvite
 class OrganizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
@@ -197,11 +197,19 @@ class StorySerializer(serializers.ModelSerializer):
     cover_image = serializers.ImageField(required=False)
     creator_admin = serializers.SerializerMethodField()
     category = serializers.CharField(required=False, allow_blank=True)
+    cover_image = serializers.ImageField(required=False, use_url=True)
 
     class Meta:
         model = Story
         fields = '__all__'
         read_only_fields = ['creator']
+    
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        request = self.context.get('request')
+        if request and rep.get('cover_image'):
+            rep['cover_image'] = request.build_absolute_uri(rep['cover_image'])
+        return rep
     def create(self, validated_data):
         category_name = validated_data.pop('category', '').strip()
         if category_name:
@@ -317,3 +325,25 @@ class CategorySerializer(serializers.ModelSerializer):
         model = Category
         fields = ['id', 'name']
 
+
+
+
+
+class StoryInviteSerializer(serializers.ModelSerializer):
+    invited_by_username = serializers.ReadOnlyField(source='invited_by.username')
+    story_data = StorySerializer(source='story', read_only=True)  # 💡 include full story
+
+    class Meta:
+        model = StoryInvite
+        fields = [
+            'id',
+            'story',
+            'story_data',
+            'invited_email',
+            'invited_by',
+            'invited_by_username',
+            'invited_user',
+            'created_at',
+            'accepted'
+        ]
+        read_only_fields = ['invited_by', 'invited_user', 'accepted']
