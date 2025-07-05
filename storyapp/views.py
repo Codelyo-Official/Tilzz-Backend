@@ -106,8 +106,11 @@ class StoryInviteViewSet(viewsets.ModelViewSet):
         return Response({'detail': 'Invite rejected successfully.'})
     
     def get_queryset(self):
-        # Only show invites for the current user (as invitee)
-        return StoryInvite.objects.filter(invited_email=self.request.user.email)
+        user = self.request.user
+        return StoryInvite.objects.filter(
+        invited_email=user.email,
+        accepted=False
+        )
 
     def perform_create(self, serializer):
         invited_email = serializer.validated_data['invited_email']
