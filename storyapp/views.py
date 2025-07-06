@@ -7,15 +7,18 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User
 from rest_framework.permissions import AllowAny
-
+from accounts.models import Profile
 from .models import Story, Version, Episode, StoryReport, Organization , Category,StoryInvite
 from .serializers import (
     StorySerializer, VersionSerializer, EpisodeSerializer, 
-    StoryReportSerializer, OrganizationSerializer, EpisodeReportSerializer, EpisodeReport,CategorySerializer,StoryInviteSerializer
+    StoryReportSerializer, OrganizationSerializer, EpisodeReportSerializer, EpisodeReport,CategorySerializer,StoryInviteSerializer,
 )
 from accounts.serializers import UserSerializer
 # Remove the circular import - don't import from .views
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from django.db.models import Q
+from rest_framework import serializers
+
 
 class IsCreatorOrReadOnly(IsAuthenticatedOrReadOnly):
     def has_object_permission(self, request, view, obj):
@@ -152,40 +155,57 @@ class StoryViewSet(viewsets.ModelViewSet):
         user = self.request.user
         queryset = Story.objects.all()
 
-        # Check roles (assuming 'profile.role' holds the user role)
+    # CATEGORY FILTER (apply later)
+        category_param = self.request.query_params.get('category')
+
+    # ✅ Unauthenticated users — safe default
+        if not user.is_authenticated:
+            queryset = queryset.filter(
+            Q(visibility='public') |
+            Q(visibility='quarantined') |
+            Q(visibility='reported')
+            )
+            if category_param:
+                queryset = queryset.filter(category__name__iexact=category_param)
+            return queryset
+
+    # ✅ Authenticated user logic continues here...
         role = getattr(user.profile, 'role', None)
 
-        if user.is_authenticated:
-            invited_story_ids = StoryInvite.objects.filter(
-            invited_email=user.email
-            ).values_list('story_id', flat=True)
+        invited_story_ids = StoryInvite.objects.filter(
+        invited_email=user.email,
+        accepted=True
+        ).values_list('story_id', flat=True)
 
-            if role in ['admin', 'subadmin']:
-                # Admins see everything
-                return queryset
+        if role == 'admin':
+            pass  # Admin sees everything, leave queryset unchanged
 
-        # Normal users see public, their own, invited, etc.
-            return queryset.filter(
+        elif role == 'subadmin':
+            assigned_user_ids = User.objects.filter(
+            profile__assigned_to=user
+            ).values_list('id', flat=True)
+
+            queryset = queryset.filter(
+            Q(creator__in=assigned_user_ids) |
+            Q(visibility='public') |
+            Q(id__in=invited_story_ids)
+        ).distinct()
+
+        else:
+        # Normal user
+            queryset = queryset.filter(
             Q(visibility='public') |
             Q(creator=user) |
             Q(id__in=invited_story_ids) |
             Q(visibility='quarantined') |
             Q(visibility='reported') |
             Q(visibility='private', creator=user)
-            )
-        else:
-            return queryset.filter(
-            Q(visibility='public') |
-            Q(visibility='quarantined') |
-            Q(visibility='reported')
-        )
+            ).distinct()
 
-        category_param = self.request.query_params.get('category')
         if category_param:
             queryset = queryset.filter(category__name__iexact=category_param)
 
         return queryset
-
 
     def perform_create(self, serializer):
         serializer.save(creator=self.request.user)
