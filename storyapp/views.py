@@ -152,32 +152,19 @@ class StoryViewSet(viewsets.ModelViewSet):
         user = self.request.user
         queryset = Story.objects.all()
 
-    # Role check
+        # Check roles (assuming 'profile.role' holds the user role)
         role = getattr(user.profile, 'role', None)
 
-    # Admin → see everything
-        if role == 'admin':
-            return queryset
-
+        if user.is_authenticated:
             invited_story_ids = StoryInvite.objects.filter(
-            invited_email=user.email,
-            accepted=True
+            invited_email=user.email
             ).values_list('story_id', flat=True)
 
-    # Subadmin → see stories from users assigned to them
-        if role == 'subadmin':
-            assigned_user_ids = User.objects.filter(
-            profile__assigned_to=user
-            ).values_list('id', flat=True)
+            if role in ['admin', 'subadmin']:
+                # Admins see everything
+                return queryset
 
-            return queryset.filter(
-            Q(creator__in=assigned_user_ids) |
-            Q(visibility='public') |
-            Q(id__in=invited_story_ids)
-            ).distinct()
-
-    # Normal user
-        if user.is_authenticated:
+        # Normal users see public, their own, invited, etc.
             return queryset.filter(
             Q(visibility='public') |
             Q(creator=user) |
@@ -185,15 +172,14 @@ class StoryViewSet(viewsets.ModelViewSet):
             Q(visibility='quarantined') |
             Q(visibility='reported') |
             Q(visibility='private', creator=user)
-        ).distinct()
+            )
         else:
             return queryset.filter(
             Q(visibility='public') |
             Q(visibility='quarantined') |
             Q(visibility='reported')
-            )
+        )
 
-    # Optional: Filter by category
         category_param = self.request.query_params.get('category')
         if category_param:
             queryset = queryset.filter(category__name__iexact=category_param)
