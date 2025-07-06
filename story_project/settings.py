@@ -167,5 +167,5 @@ EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'ahmedkhawarbs@gmail.com'           # your Gmail address
-EMAIL_HOST_PASSWORD = ''          # NOT your Gmail password
+EMAIL_HOST_PASSWORD = 'wqkg ohnb hkcy jvjn'          # NOT your Gmail password
 DEFAULT_FROM_EMAIL = 'Your Platform <ahmedkhawarbs@gmail.com>'

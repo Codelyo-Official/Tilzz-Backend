@@ -164,6 +164,8 @@ class StoryInvite(models.Model):
     invited_user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='received_invites')
     created_at = models.DateTimeField(auto_now_add=True)
     accepted = models.BooleanField(default=False)
+    rejected = models.BooleanField(default=False) 
+
 
     def __str__(self):
         return f"{self.invited_email} invited to {self.story.title}"

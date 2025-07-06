@@ -865,44 +865,72 @@ class DeleteUserView(APIView):
 @api_view(['POST'])
 def password_reset_request(request):
     email = request.data.get('email')
+
+    if not email:
+        return Response({'error': 'Email is required'}, status=400)
+
     try:
         user = User.objects.get(email=email)
-        # Generate 6-digit code
-        reset_code = str(random.randint(100000, 999999))
-        # Store code in user's profile (or session)
-        profile = user.profile
-        profile.reset_code = reset_code
-        profile.save()
-        
-        # Send email with reset code
-        send_mail(
-            'Password Reset Code',
-            f'Your password reset code is: {reset_code}',
-            'noreply@yourdomain.com',
-            [email],
-            fail_silently=False,
-        )
-        return Response({'detail': 'Reset code sent to your email'}, status=status.HTTP_200_OK)
     except User.DoesNotExist:
-        return Response({'error': 'No user with that email address'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'error': 'No user found with this email.'}, status=404)
+
+    # Generate and save 6-digit code
+    code = str(random.randint(100000, 999999))
+    user.profile.reset_code = code
+    user.profile.save()
+
+    # Send the code via email
+    send_mail(
+        'Your Password Reset Code',
+        f'Hi {user.username},\n\nYour password reset code is: {code}',
+        'Your Platform <ahmedkhawarbs@gmail.com>',
+        [email],
+        fail_silently=False,
+    )
+
+    return Response({'detail': 'Reset code sent to your email.'}, status=200)
 
 @csrf_exempt
 @api_view(['POST'])
 def verify_reset_code(request):
     email = request.data.get('email')
     code = request.data.get('code')
-    new_password = request.data.get('new_password')
-    
+
+    if not email or not code:
+        return Response({'error': 'Email and code are required'}, status=400)
+
     try:
         user = User.objects.get(email=email)
         if user.profile.reset_code == code:
-            user.set_password(new_password)
-            user.save()
-            # Clear reset code
-            user.profile.reset_code = None
-            user.profile.save()
-            return Response({'detail': 'Password updated successfully'}, status=status.HTTP_200_OK)
+            return Response({'detail': 'Code verified successfully'}, status=200)
         else:
-            return Response({'error': 'Invalid reset code'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'Invalid code'}, status=400)
     except User.DoesNotExist:
-        return Response({'error': 'Invalid email'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'error': 'User not found'}, status=404)
+
+@api_view(['POST'])
+def reset_password(request):
+    email = request.data.get('email')
+    code = request.data.get('code')
+    new_password = request.data.get('new_password')
+
+    if not all([email, code, new_password]):
+        return Response({'error': 'Email, code, and new password are required.'}, status=400)
+
+    try:
+        user = User.objects.get(email=email)
+
+        if user.profile.reset_code != code:
+            return Response({'error': 'Invalid code'}, status=400)
+
+        user.set_password(new_password)
+        user.save()
+
+        # Clear the code after success
+        user.profile.reset_code = None
+        user.profile.save()
+
+        return Response({'detail': 'Password reset successful.'}, status=200)
+
+    except User.DoesNotExist:
+        return Response({'error': 'User not found'}, status=404)

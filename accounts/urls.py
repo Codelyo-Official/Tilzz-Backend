@@ -7,12 +7,12 @@ from .views import (
     CreateOrganizationView, ListOrganizationsView, OrganizationDetailView,
     RemoveMemberFromOrganizationView,
     DeleteUserView, SubadminDeleteUserView, DeleteOrganizationView,AddMultipleMembersToOrganizationView,
-    UserActivityStatsView
+    UserActivityStatsView,
 )
 
 from storyapp.views import AdminEpisodeReviewView, ApproveEpisodeView, RejectEpisodeView
 from rest_framework.authtoken.views import obtain_auth_token
-from .views import password_reset_request, verify_reset_code
+from .views import password_reset_request, verify_reset_code,reset_password
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
@@ -55,4 +55,5 @@ urlpatterns = [
     path('organizations/<int:organization_id>/delete/', DeleteOrganizationView.as_view(), name='delete_organization'),
     path('password-reset/', password_reset_request, name='password_reset'),
     path('verify-reset-code/', verify_reset_code, name='verify_reset_code'),
+    path('reset-password/', reset_password, name='reset_password'),
 ]

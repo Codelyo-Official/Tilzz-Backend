@@ -95,42 +95,48 @@ class StoryInviteViewSet(viewsets.ModelViewSet):
     def reject(self, request, pk=None):
         invite = self.get_object()
 
-    # Only allow the invited person to reject
         if invite.invited_email.lower() != request.user.email.lower():
             return Response({'detail': 'You are not authorized to reject this invite.'}, status=403)
 
-    # Don't allow rejecting if already accepted
         if invite.accepted:
             return Response({'detail': 'Invite already accepted, cannot reject.'}, status=400)
 
-    # Prevent duplicate rejection
         if invite.rejected:
             return Response({'detail': 'Invite already rejected.'}, status=400)
 
-    # Mark as rejected and assign invited_user for tracking
         invite.rejected = True
         invite.invited_user = request.user
         invite.save()
 
         return Response({'detail': 'Invite rejected successfully.'})
-
     
     def get_queryset(self):
         user = self.request.user
         return StoryInvite.objects.filter(
         invited_email=user.email,
-        accepted=False
+        accepted=False,
+        rejected=False
         )
 
     def perform_create(self, serializer):
         invited_email = serializer.validated_data['invited_email']
+        inviter = self.request.user
+
+    # Prevent inviting yourself
+        if invited_email.lower() == inviter.email.lower():
+            raise serializers.ValidationError({'invited_email': 'You cannot invite yourself.'})
+
+    # Check if the user with that email exists (optional)
         invited_user = User.objects.filter(email__iexact=invited_email).first()
+
+    # Save the invite
         invite = serializer.save(
-            invited_by=self.request.user,
+            invited_by=inviter,
             invited_user=invited_user
         )
-        #invite.send_invitation_email()
 
+    # Send invitation email
+        invite.send_invitation_email()
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Category.objects.all().order_by('name')
@@ -146,19 +152,32 @@ class StoryViewSet(viewsets.ModelViewSet):
         user = self.request.user
         queryset = Story.objects.all()
 
-        # Check roles (assuming 'profile.role' holds the user role)
+    # Role check
         role = getattr(user.profile, 'role', None)
 
-        if user.is_authenticated:
+    # Admin → see everything
+        if role == 'admin':
+            return queryset
+
             invited_story_ids = StoryInvite.objects.filter(
-            invited_email=user.email
+            invited_email=user.email,
+            accepted=True
             ).values_list('story_id', flat=True)
 
-            if role in ['admin', 'subadmin']:
-                # Admins see everything
-                return queryset
+    # Subadmin → see stories from users assigned to them
+        if role == 'subadmin':
+            assigned_user_ids = User.objects.filter(
+            profile__assigned_to=user
+            ).values_list('id', flat=True)
 
-        # Normal users see public, their own, invited, etc.
+            return queryset.filter(
+            Q(creator__in=assigned_user_ids) |
+            Q(visibility='public') |
+            Q(id__in=invited_story_ids)
+            ).distinct()
+
+    # Normal user
+        if user.is_authenticated:
             return queryset.filter(
             Q(visibility='public') |
             Q(creator=user) |
@@ -166,17 +185,19 @@ class StoryViewSet(viewsets.ModelViewSet):
             Q(visibility='quarantined') |
             Q(visibility='reported') |
             Q(visibility='private', creator=user)
-            )
+        ).distinct()
         else:
             return queryset.filter(
             Q(visibility='public') |
             Q(visibility='quarantined') |
             Q(visibility='reported')
-        )
+            )
 
+    # Optional: Filter by category
         category_param = self.request.query_params.get('category')
         if category_param:
             queryset = queryset.filter(category__name__iexact=category_param)
+
         return queryset
 
 
