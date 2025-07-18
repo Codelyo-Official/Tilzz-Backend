@@ -327,11 +327,13 @@ class CategorySerializer(serializers.ModelSerializer):
 
 
 
-
+from rest_framework import serializers
+from .models import StoryInvite
+from .serializers import StorySerializer
 
 class StoryInviteSerializer(serializers.ModelSerializer):
     invited_by_username = serializers.ReadOnlyField(source='invited_by.username')
-    story_data = StorySerializer(source='story', read_only=True)  # 💡 include full story
+    story_data = StorySerializer(source='story', read_only=True)
 
     class Meta:
         model = StoryInvite
@@ -347,3 +349,8 @@ class StoryInviteSerializer(serializers.ModelSerializer):
             'accepted'
         ]
         read_only_fields = ['invited_by', 'invited_user', 'accepted']
+
+    def validate_invited_email(self, value):
+        if self.context['request'].user.email.lower() == value.lower():
+            raise serializers.ValidationError("You cannot invite yourself.")
+        return value

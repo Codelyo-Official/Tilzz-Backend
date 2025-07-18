@@ -82,8 +82,9 @@ class StoryInviteViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def accept(self, request, pk=None):
         invite = self.get_object()
+        user_email = request.user.email.lower()
 
-        if invite.invited_email.lower() != request.user.email.lower():
+        if invite.invited_email.lower() != user_email:
             return Response({'detail': 'You are not authorized to accept this invite.'}, status=403)
 
         if invite.accepted:
@@ -93,12 +94,13 @@ class StoryInviteViewSet(viewsets.ModelViewSet):
         invite.invited_user = request.user
         invite.save()
         return Response({'detail': 'Invite accepted successfully.'})
-    
+
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def reject(self, request, pk=None):
         invite = self.get_object()
+        user_email = request.user.email.lower()
 
-        if invite.invited_email.lower() != request.user.email.lower():
+        if invite.invited_email.lower() != user_email:
             return Response({'detail': 'You are not authorized to reject this invite.'}, status=403)
 
         if invite.accepted:
@@ -110,35 +112,38 @@ class StoryInviteViewSet(viewsets.ModelViewSet):
         invite.rejected = True
         invite.invited_user = request.user
         invite.save()
-
         return Response({'detail': 'Invite rejected successfully.'})
-    
+
     def get_queryset(self):
-        user = self.request.user
         return StoryInvite.objects.filter(
-        invited_email=user.email,
-        accepted=False,
-        rejected=False
+            invited_email__iexact=self.request.user.email,
+            accepted=False,
+            rejected=False
         )
 
     def perform_create(self, serializer):
         invited_email = serializer.validated_data['invited_email']
         inviter = self.request.user
 
-    # Prevent inviting yourself
+        # Prevent inviting yourself
         if invited_email.lower() == inviter.email.lower():
             raise serializers.ValidationError({'invited_email': 'You cannot invite yourself.'})
 
-    # Check if the user with that email exists (optional)
+        # Prevent duplicate invites to the same story
+        story = serializer.validated_data['story']
+        if StoryInvite.objects.filter(invited_email__iexact=invited_email, story=story).exists():
+            raise serializers.ValidationError({'invited_email': 'This user is already invited to this story.'})
+
+        # Match user if registered
         invited_user = User.objects.filter(email__iexact=invited_email).first()
 
-    # Save the invite
+        # Save the invite
         invite = serializer.save(
             invited_by=inviter,
             invited_user=invited_user
         )
 
-    # Send invitation email
+        # Send invitation email
         invite.send_invitation_email()
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
