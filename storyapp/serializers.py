@@ -354,3 +354,5 @@ class StoryInviteSerializer(serializers.ModelSerializer):
         if self.context['request'].user.email.lower() == value.lower():
             raise serializers.ValidationError("You cannot invite yourself.")
         return value
+
+        

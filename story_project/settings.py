@@ -42,8 +42,9 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework.authtoken',
     'storyapp',
-    'accounts',
-    'corsheaders'
+    'corsheaders',
+    'accounts.apps.AccountsConfig',
+
 ]
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
