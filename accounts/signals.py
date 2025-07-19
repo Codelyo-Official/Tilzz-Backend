@@ -7,7 +7,7 @@ User = get_user_model()
 
 @receiver(post_save, sender=User)
 def assign_invites_to_new_user(sender, instance, created, **kwargs):
-    if created:
+    if created and instance.email:
         StoryInvite.objects.filter(
             invited_email__iexact=instance.email,
             invited_user__isnull=True
